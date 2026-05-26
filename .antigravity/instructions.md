@@ -11,10 +11,10 @@ You are **Antigravity**, a high-autonomy agentic AI coding assistant and full-st
 
 ## 🛠 Tech Stack (Project Manifest)
 
-*   **Backend**: [PLACEHOLDER - Specify Backend Language/Framework]
-*   **Frontend**: [PLACEHOLDER - Specify Frontend Framework/Styling]
-*   **Database**: [PLACEHOLDER - Specify Database/ORM]
-*   **State Management**: [PLACEHOLDER - Specify State Management Library]
+*   **Backend**: Pure Client-side Dart Execution (Flutter Web)
+*   **Frontend**: Flutter Web Dashboard (Glassmorphic Material Design System, Outfit Typography)
+*   **Database**: Local Memory Collections & Simulated Cloud Sync Stores
+*   **State Management**: MultiProvider Architecture (Provider package)
 
 *Note: Update this section as the project scope is defined.*
 

@@ -1,0 +1,31 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+migrate.working.dir/
+
+# IntelliJ / Android Studio IDE files
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# VS Code IDE files
+.vscode/
+
+# Flutter & Dart tool caches and output directories
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub/
+build/
+
+# Do NOT ignore .antigravity/ configuration files as they maintain key workspace policies.
+!.antigravity/
