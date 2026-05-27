@@ -8,6 +8,8 @@ import 'package:media_chronicle/state/app_state.dart';
 import 'package:media_chronicle/features/gallery/providers/gallery_provider.dart';
 import 'package:media_chronicle/features/stories/providers/stories_provider.dart';
 import 'package:media_chronicle/features/settings/providers/settings_provider.dart';
+import 'package:media_chronicle/features/gallery/providers/yolo_face_provider.dart';
+import 'package:media_chronicle/core/utils/postgres_sync_service.dart';
 
 class MockHttpOverrides extends HttpOverrides {
   @override
@@ -92,6 +94,8 @@ void main() {
         providers: [
           ChangeNotifierProvider(create: (_) => AppState()),
           ChangeNotifierProvider(create: (_) => GalleryProvider()),
+          ChangeNotifierProvider(create: (_) => YoloFaceProvider()),
+          ChangeNotifierProvider(create: (_) => PostgresSyncService()),
           ChangeNotifierProvider(create: (_) => StoriesProvider()),
           ChangeNotifierProvider(create: (_) => SettingsProvider()),
         ],

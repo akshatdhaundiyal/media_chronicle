@@ -38,11 +38,14 @@ lib/
 │   │       └── stories_screen.dart # Timeline view and draft dialog
 │   ├── gallery/                   # Photo & Video catalog archiving
 │   │   ├── models/
-│   │   │   └── media_item.dart    # Individual media element (image/video)
+│   │   │   ├── media_item.dart    # Individual media element (image/video)
+│   │   │   └── detected_face.dart # YOLO detected face coordinates and embeddings
 │   │   ├── providers/
-│   │   │   └── gallery_provider.dart  # Media list controller
+│   │   │   ├── gallery_provider.dart  # Media list controller
+│   │   │   └── yolo_face_provider.dart # YOLO Face classifier and active-learning trainer
 │   │   └── views/
-│   │       └── gallery_screen.dart # Masonry gallery grid & detail lightboxes
+│   │       ├── gallery_screen.dart # Masonry gallery grid, detail lightboxes & bounding box overlays
+│   │       └── yolo_face_screen.dart # YOLO Face Hub dashboard with cluster maps & training terminals
 │   └── settings/                  # Control Center configurations
 │       ├── providers/
 │       │   └── settings_provider.dart # Preference & host name state
@@ -80,6 +83,12 @@ lib/
    * Switches on/off vibrant twilight theme styles and notifications.
 4. **Global Workspace Search**:
    * An integrated search filter located in the header coordinates query values across all providers, filtering both gallery assets and story narratives dynamically in real-time.
+5. **YOLO Self-Retraining Face Engine (Active Learning)**:
+   * **Responsive Bounding Box Overlays**: Displays glowing neon pink and cyber-cyan overlays on top of media files with clickable regions to label unidentified faces.
+   * **SGD Live Trainer Terminal**: A real-time training dashboard showing decreasing loss and increasing accuracy inside a scrolling, retro-style terminal window as the model self-retrains.
+   * **Chronological Age Timeline**: Implements beautiful visual galleries for enrolled people, showing their physical changes over the years.
+   * **2D Vector Embeddings Cluster Map**: Features a custom-painted interactive 2D coordinate plot mapping face vector groups, linking age progression variations with subtle dotted paths.
+   * **Low Similarity & Growth Conflicts**: Handles physical age drift by asking the user to confirm whether a low-confidence match of an existing person is the "Same Person (Age Variant)" or a different identity, triggering customized retraining parameters.
 
 ---
 
@@ -107,4 +116,12 @@ Run the strict Flutter linter to verify zero compiler warnings and clean syntax 
 flutter analyze
 ```
 > [!NOTE]  
-> The codebase has been refactored to comply with modern Flutter standards, removing all deprecated APIs (such as `withOpacity`, `activeColor`, and `background` configurations).
+> The codebase has been fully refactored in Milestone 5 to resolve all 12 key architectural audit recommendations, providing a highly decoupled, clean feature-first architecture, immutable data structures, O(1) performance grid rebuild bounds, dry dialog widgets, and extensive testing coverage.
+
+## 🛠️ Key Refactoring Achievements (Milestone 5)
+
+1. **Modular Widget Class Decomposition**: Broken down the monolithic 2,022-line `gallery_screen.dart` into 8 separate single-responsibility sub-widgets under `lib/features/gallery/views/widgets/`.
+2. **Lifecycle Stability & StatefulWidget Caching**: Moved LLM poller initialization out of Stateless build bounds into stateful `initState` post-frame callbacks, preventing polling loop re-triggers.
+3. **Strict Model Immutability**: Refactored `MediaItem` and `DetectedFace` to have completely final attributes, unmodifiable embedding lists, and copyWith copy handlers.
+4. **Selective O(1) Rebuild Bounds**: Integrated `Selector` structures into Gallery cards, preventing generic card updates when face labeling events occur elsewhere.
+5. **Robust Test Coverage**: Wrote lightweight unit tests covering all provider state models in `test/providers_unit_test.dart` to guarantee future quality constraints.

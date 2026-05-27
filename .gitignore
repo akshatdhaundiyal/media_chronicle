@@ -29,3 +29,7 @@ build/
 
 # Do NOT ignore .antigravity/ configuration files as they maintain key workspace policies.
 !.antigravity/
+
+# Test Data
+test_data
+test_data/
