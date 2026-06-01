@@ -1,15 +1,22 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:postgres/postgres.dart';
 import '../../features/gallery/models/media_item.dart';
 import '../../features/gallery/models/detected_face.dart';
 
 class PostgresSyncService extends ChangeNotifier {
   static final PostgresSyncService _instance = PostgresSyncService._internal();
   factory PostgresSyncService() => _instance;
-  PostgresSyncService._internal();
+  
+  PostgresSyncService._internal() {
+    _addLog('[System] PostgreSQL Sync Center ready. Offline queuing active.');
+  }
+
+  // Active Connection reference
+  Connection? _connection;
 
   // Status variables
-  bool _isConnected = true;
+  bool _isConnected = false;
   int _syncedRecords = 0;
   final List<String> _syncLogs = [];
   final List<String> _syncQueue = [];
@@ -23,11 +30,6 @@ class PostgresSyncService extends ChangeNotifier {
   // PostgreSQL Relational Tables Schema Definition (DDL)
   String get sqlSchemaMigration {
     return '''
--- ==========================================================
--- PostgreSQL Schema Migration: Media Chronicle AI Database
--- Target Engine: PostgreSQL 14+
--- ==========================================================
-
 -- 1. Base Media Archive Table
 CREATE TABLE IF NOT EXISTS media_items (
     id VARCHAR(64) PRIMARY KEY,      -- Cryptographic SHA-256 Hash Identifier
@@ -54,7 +56,7 @@ CREATE TABLE IF NOT EXISTS llm_inferences (
 
 -- Indexing for semantic text search and filtering
 CREATE INDEX IF NOT EXISTS idx_llm_inferences_group ON llm_inferences(group_category);
-CREATE INDEX IF NOT EXISTS idx_llm_inferences_tags ON llm_inferences USING gin(tags);
+CREATE INDEX IF NOT EXISTS idx_llm_inferences_tags ON llm_inferences USING GIN(tags);
 
 -- 3. YOLO Detected Faces Table
 CREATE TABLE IF NOT EXISTS yolo_faces (
@@ -77,15 +79,94 @@ CREATE INDEX IF NOT EXISTS idx_yolo_faces_name ON yolo_faces(name) WHERE is_iden
 ''';
   }
 
-  void toggleConnection(bool val) {
-    _isConnected = val;
-    _addLog('[System] PostgreSQL Connection ${val ? "RESTORED" : "PAUSED"} - Endpoint: localhost:5432/chronicle');
-    notifyListeners();
+  /// Attempts to establish a connection to a real PostgreSQL database server
+  Future<void> toggleConnection(
+    bool val, {
+    String? host,
+    int? port,
+    String? db,
+    String? user,
+    String? pass,
+    bool? ssl,
+  }) async {
+    if (val) {
+      _addLog('[System] Attempting connection to PostgreSQL...');
+      notifyListeners();
+      try {
+        if (_connection != null) {
+          await _connection!.close();
+          _connection = null;
+        }
+
+        final targetHost = host ?? 'localhost';
+        final targetPort = port ?? 5432;
+        final targetDb = db ?? 'chronicle';
+        final targetUser = user ?? 'postgres';
+        final targetPass = pass ?? 'password';
+        final targetSsl = ssl ?? false;
+
+        _connection = await Connection.open(
+          Endpoint(
+            host: targetHost,
+            port: targetPort,
+            database: targetDb,
+            username: targetUser,
+            password: targetPass,
+          ),
+          settings: ConnectionSettings(
+            sslMode: targetSsl ? SslMode.require : SslMode.disable,
+          ),
+        ).timeout(const Duration(seconds: 5));
+
+        _isConnected = true;
+        _addLog('[Success] PostgreSQL Connection ESTABLISHED!');
+        _addLog('[System] Endpoint: $targetHost:$targetPort/$targetDb');
+        
+        await _runDatabaseMigrations();
+        
+        notifyListeners();
+      } catch (e) {
+        _isConnected = false;
+        _connection = null;
+        _addLog('[Error] PostgreSQL Connection Failed: $e');
+        notifyListeners();
+      }
+    } else {
+      _isConnected = false;
+      if (_connection != null) {
+        await _connection!.close();
+        _connection = null;
+      }
+      _addLog('[System] PostgreSQL Connection PAUSED.');
+      notifyListeners();
+    }
+  }
+
+  /// Runs database table structure migrations automatically upon connecting
+  Future<void> _runDatabaseMigrations() async {
+    if (_connection == null || !_isConnected) return;
+    
+    _addLog('[Execute] Checking database table structure and indexes...');
+    try {
+      final queries = sqlSchemaMigration
+          .split(';')
+          .map((q) => q.trim())
+          .where((q) => q.isNotEmpty)
+          .toList();
+
+      for (final query in queries) {
+        if (query.startsWith('--') && !query.contains('\n')) continue;
+        await _connection!.execute(query);
+      }
+      _addLog('[Success] All database tables and indexes verified successfully.');
+    } catch (e) {
+      _addLog('[Error] Database migration query execution failed: $e');
+    }
   }
 
   /// Registers and processes a PostgreSQL synchronization query block in the background
   void _executeSyncQuery(String sql) {
-    if (!_isConnected) {
+    if (!_isConnected || _connection == null) {
       _syncQueue.add(sql);
       _addLog('[Database OFFLINE] Sync query queued: ${sql.split('\n').first}...');
       notifyListeners();
@@ -95,11 +176,23 @@ CREATE INDEX IF NOT EXISTS idx_yolo_faces_name ON yolo_faces(name) WHERE is_iden
     _addLog('[Execute] Streaming SQL statement to Postgres...');
     _addLog(sql);
     
-    // Simulate slight database insertion network roundtrip latency
-    Timer(const Duration(milliseconds: 400), () {
-      _syncedRecords++;
-      _addLog('[Success] Database transaction committed! (Row synced successfully)');
-      notifyListeners();
+    // Run real async db execution
+    scheduleMicrotask(() async {
+      try {
+        if (_connection != null && _isConnected) {
+          await _connection!.execute(sql);
+          _syncedRecords++;
+          _addLog('[Success] Database transaction committed! (Row synced successfully)');
+          notifyListeners();
+        } else {
+          _syncQueue.add(sql);
+          _addLog('[Database OFFLINE] Connection dropped. Query queued.');
+          notifyListeners();
+        }
+      } catch (e) {
+        _addLog('[Error] Execution failed: $e');
+        notifyListeners();
+      }
     });
   }
 
@@ -157,7 +250,7 @@ ON CONFLICT (id) DO UPDATE SET
 
   /// Retries flushing any offline-queued statements when Postgres reconnects
   void processSyncQueue() {
-    if (_syncQueue.isEmpty || !_isConnected) return;
+    if (_syncQueue.isEmpty || !_isConnected || _connection == null) return;
 
     _addLog('[System] Flushing offline synchronized queue (${_syncQueue.length} statements)...');
     final statements = List<String>.from(_syncQueue);
@@ -165,7 +258,7 @@ ON CONFLICT (id) DO UPDATE SET
     
     int index = 0;
     Timer.periodic(const Duration(milliseconds: 250), (timer) {
-      if (index >= statements.length) {
+      if (index >= statements.length || !_isConnected || _connection == null) {
         timer.cancel();
         notifyListeners();
         return;
@@ -176,7 +269,6 @@ ON CONFLICT (id) DO UPDATE SET
 
   void _addLog(String log) {
     _syncLogs.add(log);
-    // Keep max logs to prevent memory leaks
     if (_syncLogs.length > 200) {
       _syncLogs.removeAt(0);
     }

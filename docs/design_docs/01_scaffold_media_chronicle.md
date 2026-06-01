@@ -1,10 +1,10 @@
 # Design Document: Scaffolding Media Chronicle Workspace
 
 ## 1. Goal
-Scaffold a premium, responsive Flutter Web application named `media_chronicle` targeting visual gallery archiving, story narrative curation, and general control center preference setting.
+Scaffold a premium, responsive Flutter application named `media_chronicle` targeting visual gallery archiving, story narrative curation, and general control center preference setting.
 
 ## 2. Tech Stack & State Management
-*   **Target Platform**: Flutter Web
+*   **Target Platform**: Flutter Web (Originally scaffolded for Web; permanently migrated to Windows-native Desktop only in Milestone 7)
 *   **State Coordination**: `MultiProvider` tree linking:
     *   `AppState`: Coordinates top tabs (`stories`, `gallery`, `settings`) and global filtering values.
     *   `StoriesProvider`: Tracks and mutates chronological story narratives.

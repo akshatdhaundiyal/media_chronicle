@@ -33,3 +33,29 @@ build/
 # Test Data
 test_data
 test_data/
+
+# Python runtime and environment artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+.venv/
+venv/
+ENV/
+env/
+
+# Local environment variables and secrets (used for config overrides)
+.env
+.env.*
+
+# Python test, coverage, and linting caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+**/.ipynb_checkpoints/
+
+# YOLO training outputs (weights, metrics, plots — regenerated on each run)
+runs/
+datasets/

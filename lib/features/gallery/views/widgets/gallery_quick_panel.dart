@@ -268,7 +268,7 @@ class GalleryQuickPanel extends StatelessWidget {
   Widget _buildVlmControls(BuildContext context, SettingsProvider settings, GalleryProvider galleryProv) {
     final models = galleryProv.pulledModels.isNotEmpty
         ? galleryProv.pulledModels
-        : ['gemma4:e4b', 'gemma4:e2b', 'llava', 'paligemma', 'moondream'];
+        : [settings.ollamaModel.isNotEmpty ? settings.ollamaModel : 'Auto-Detecting...'];
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(

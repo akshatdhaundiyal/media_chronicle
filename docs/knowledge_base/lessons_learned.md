@@ -1,51 +1,77 @@
-# Knowledge Base: Lessons Learned (Technical Audits)
+# 📚 Knowledge Base: Technical Lessons Learned (Technical Audits)
 
-This knowledge base records technical hurdles, architectural decisions, and bug resolutions encountered in the Media Chronicle repository that required significant effort.
+This knowledge base logs technical hurdles, architectural decisions, and critical bug resolutions encountered during the development and optimization of the *Media Chronicle* offline-first Windows desktop application.
+
+To keep documentation clean, modular, and highly detailed, the technical logs have been categorized into specialized modules:
 
 ---
 
-## 🛠️ Lessons Logged
+## 🛠️ Specialized Technical Modules
 
-### Lesson 1: Network Image Interception in Flutter Test Environments
-*   **Hurdle**: Flutter widget tests run in a sandbox that blocks internet access by default. Any `NetworkImage` resource loader throws an HTTP 400 error, causing widget test suites to crash.
-*   **Resolution**: Implemented custom system-wide `HttpOverrides` inside [widget_test.dart](file:///d:/lab/projects/media_chronicle/test/widget_test.dart):
-    *   Intercepts `getUrl` and `openUrl` requests.
-    *   Returns a mock response containing raw memory bytes representing a 1x1 transparent GIF (`mockImageBytes`).
-*   **Takeaway**: Overriding global IO clients directly inside tests resolves all external asset dependencies cleanly without adding mock dependencies inside the production manifest (`pubspec.yaml`).
+### 🧪 [Module 1: Network Interception & Sandbox Testing](file:///d:/lab/projects/media_chronicle/docs/knowledge_base/01_testing_and_mocking.md)
+*   **Focus**: Intercepting network requests inside secure, offline Flutter test environments.
+*   **Key Concepts**: `HttpOverrides.global`, mock `HttpClient` streams, and injecting 1x1 transparent GIF memory bytes safely without production code pollution.
+*   **Related Milestones**: M1 (Scaffolding), M5 (Comprehensive Refactoring).
 
-### Lesson 2: Resolving Sub-Pixel RenderFlex Layout Overflows
-*   **Hurdle**: Layout testing under restricted viewport bounds can fail due to extremely tiny overflows (e.g., `0.750 pixels` on the right) when text length slightly exceeds bounds due to differing system font scale factors.
-*   **Resolution**: 
-    *   Replaced rigid layouts in [main.dart](file:///d:/lab/projects/media_chronicle/lib/main.dart) by wrapping text containers with `Expanded` widgets.
-    *   Adjusted layout padding parameters from rigid values (`EdgeInsets.all(24.0)`) to modular symmetric parameters.
-*   **Takeaway**: Never let text widgets expand unconstrained horizontally inside horizontal Flex containers (`Row`) unless wrapped in `Expanded` or `Flexible` widgets, particularly inside narrow parent containers like drawers or sidebars.
+### 📐 [Module 2: Bounded Constraints & Layout Overflow Prevention](file:///d:/lab/projects/media_chronicle/docs/knowledge_base/02_layout_and_rendering.md)
+*   **Focus**: Debugging horizontal `RenderFlex` overflows, sub-pixel text rendering drift, and flexible multi-viewport layouts.
+*   **Key Concepts**: `Flexible` and `Expanded` boundaries inside unbounded flex rows, top alignment cross-axes, and responsive design systems.
+*   **Related Milestones**: M4 (Performance Audit), M9 (Modularisation).
 
-### Lesson 3: Resolving Keystroke Cursor Jumps in Inline StatelessWidget Controllers
-*   **Hurdle**: Declaring inline `TextEditingController`s inside stateless helper methods or `StatelessWidget` `build` scopes causes the controller instances to be recreated on every parent state rebuild. When the text changes, a state refresh updates the provider, triggers a parent repaint, re-instantiates the controller, and resets the user's cursor selection back to the boundary.
-*   **Resolution**: Converted the inline configurator card into a dedicated `StatefulWidget`. By caching controller objects in `initState()` and securely calling `dispose()` at widget termination, we guarantee stable text selection and smooth, cursor-jump-free configurations.
-*   **Takeaway**: Never instantiate inline text editing controllers inside a stateless repaint scope. Bind controller lifecycles to state blocks.
+### ⚡ [Module 3: Controllers Lifecycle & Async Context Safety](file:///d:/lab/projects/media_chronicle/docs/knowledge_base/03_widget_lifecycle_and_controllers.md)
+*   **Focus**: Preventing memory leaks from scroll controllers, text cursor jumps in stateless repaints, and unmounted async context pop bugs.
+*   **Key Concepts**: Stateful controller caching, `dispose()` memory frees, synchronous pre-capturing prior to popping contexts, and safe listener teardowns in widget tests.
+*   **Related Milestones**: M4 (Performance Audit), M7 (Native Migration — async lifecycle fix).
 
-### Lesson 4: ScrollController Resource Leakage in Stateless Builder Methods
-*   **Hurdle**: A monospace sync terminal required a `ScrollController` to autoscroll logs. Declaring `ScrollController` inside a `StatelessWidget` builder helper causes it to be instantiated repeatedly, triggering severe memory leaks and resetting scroll offsets on repaint passes.
-*   **Resolution**: Replaced the stateless card helper with a standalone `StatefulWidget` class, instantiating the log console `ScrollController` inside `initState()` and terminating it via `dispose()`.
-*   **Takeaway**: Always manage dynamic list, terminal, and grid scroll controllers inside stateful lifecycles.
+### 📊 [Module 4: Performance Isolation & Selective Rebuilding](file:///d:/lab/projects/media_chronicle/docs/knowledge_base/04_state_management_and_performance.md)
+*   **Focus**: Optimizing scrolling speeds in long list grids, DRY dialog extraction, and clean numerical state modeling.
+*   **Key Concepts**: Precise granular `Selector` filters for $O(1)$ repaints, self-contained overlay classes, and raw data variables paired with dynamic getters.
+*   **Related Milestones**: M5 (Comprehensive Refactoring), M9 (Modularisation).
 
-### Lesson 5: Compilation Recovery for Nested Class Scoping Bounds
-*   **Hurdle**: Accidentally omitting the closing brace `}` of a screen state class block causes any subsequently declared widget classes to be parsed as nested statements. Because Dart does not support class nesting, the compiler recovered by treating card class fields and methods as local variables, throwing a cascade of 68 warnings and syntax errors.
-*   **Resolution**: Terminated the parent state class block cleanly, cleaned up orphaned badge helper duplicates, and migrated the card class to the bottom of the file as an independent, standalone `StatelessWidget` class.
-*   **Takeaway**: Keep screen state and card layouts clearly separated into contiguous class declarations. Prefer standalone files or bottom-of-the-file class placements.
+### 🧠 [Module 5: Pure Dart Edge Machine Learning & Perceptrons](file:///d:/lab/projects/media_chronicle/docs/knowledge_base/05_pure_dart_machine_learning.md)
+*   **Focus**: Writing mathematically complete neural networks inside pure Dart client applications for live, local active learning.
+*   **Key Concepts**: Softmax activation with numerical stability constants, cross-entropy loss, online Stochastic Gradient Descent (SGD) backpropagation, and vector cluster coordinate mapping.
+*   **Related Milestones**: M2 (YOLO Face Recognition), M6 (On-Device ML Engine).
 
-### Lesson 6: High-Performance List Rebuild isolation via `Selector`
-*   **Hurdle**: Listening to a provider globally via `context.watch<T>()` or standard `Consumer<T>` on grid cards triggers O(N) rebuild complexity upon any single list update. In large galleries, this leads to heavy layout churn and scrolling lag.
-*   **Resolution**: Integrated a granular `Selector<YoloFaceProvider, List<DetectedFace>>` filtered by `item.id`. By comparing the filtered face list with unmodifiable lists, only the specific card hosting that face is rebuilt.
-*   **Takeaway**: Always use precise `Selector` boundaries to isolate card repaint passes inside long scrolling lists.
+---
 
-### Lesson 7: Decoupled Multi-Screen Shared Dialog Orchestration
-*   **Hurdle**: Inline form structures (like face labeling bounding boxes) are easily duplicated across different feature views (e.g. Gallery screen and YOLO Face Hub screen), which violates DRY principles and creates double-maintenance overhead.
-*   **Resolution**: Extracted the dialog forms into a dedicated, self-contained `FaceLabelingDialog` class. It manages text controllers, autofocusing, and dual-step confirmation parameters cleanly in a single location.
-*   **Takeaway**: Move highly-interactive overlay states (dialogs, lightboxes) into dedicated custom widgets to maintain lean orchestrating views.
+## 📐 Cross-Reference: Milestones → Knowledge Modules
 
-### Lesson 8: Dynamic Quota Progress Linking
-*   **Hurdle**: Storing calculated status metadata (such as formatted progress strings) as static string constants prevents dynamic progress bar widgets from sharing the underlying state metrics.
-*   **Resolution**: Migrated storage variables from raw hardcoded strings to standard double attributes inside `SettingsProvider` (GB used and GB total), and calculated final limits dynamically via a getter.
-*   **Takeaway**: Always store baseline raw numerical attributes inside provider models and compute formatting details dynamically inside clean getters.
+| Milestone | Relevant Knowledge Modules |
+|-----------|---------------------------|
+| M1 — Scaffolding & Visual Foundation | Module 1 (Testing) |
+| M2 — YOLO Face Recognition Engine | Module 5 (Edge ML) |
+| M3 — Sequential Queues & Multi-Select | Module 4 (State Management) |
+| M4 — Performance & Lifecycle Audit | Modules 2, 3, 4 (Layout, Lifecycle, Performance) |
+| M5 — Comprehensive Refactoring | Modules 1, 4 (Testing, Performance) |
+| M6 — On-Device ML Engine | Module 5 (Edge ML) |
+| M7 — Web Elimination & Native Migration | Module 3 (Async Context Safety) |
+| M8 — Fast-Load & Offline Bypass | Module 4 (State Management) |
+| M9 — Project-Wide Modularisation | Modules 2, 4 (Layout, Performance) |
+| M10 — Python YOLO Pipeline | PEP 723 dependency isolation & unified config cascade design patterns |
+
+---
+
+## 📁 Design Documents Index
+
+All milestone design documents are located in `docs/design_docs/`:
+
+| Document | Milestone |
+|----------|-----------|
+| [00_milestone_summary.md](file:///d:/lab/projects/media_chronicle/docs/design_docs/00_milestone_summary.md) | Complete milestone index with Gantt timeline |
+| [01_scaffold_media_chronicle.md](file:///d:/lab/projects/media_chronicle/docs/design_docs/01_scaffold_media_chronicle.md) | M1 — Initial scaffolding |
+| [02_yolo_self_retraining_face_recognition.md](file:///d:/lab/projects/media_chronicle/docs/design_docs/02_yolo_self_retraining_face_recognition.md) | M2 + M6 — YOLO engine & on-device ML |
+| [03_sequential_queue_multiselect_actions.md](file:///d:/lab/projects/media_chronicle/docs/design_docs/03_sequential_queue_multiselect_actions.md) | M3 — VLM queues & batch actions |
+| [04_architectural_best_practices_refactoring.md](file:///d:/lab/projects/media_chronicle/docs/design_docs/04_architectural_best_practices_refactoring.md) | M4 + M5 — Architecture & refactoring |
+| [05_native_desktop_migration.md](file:///d:/lab/projects/media_chronicle/docs/design_docs/05_native_desktop_migration.md) | M7 — Web elimination & native migration |
+| [06_fast_load_bypass.md](file:///d:/lab/projects/media_chronicle/docs/design_docs/06_fast_load_bypass.md) | M8 — Fast-load & offline bypass |
+| [07_code_modularisation.md](file:///d:/lab/projects/media_chronicle/docs/design_docs/07_code_modularisation.md) | M9 — Widget decomposition |
+| [08_python_yolo_pipeline.md](file:///d:/lab/projects/media_chronicle/docs/design_docs/08_python_yolo_pipeline.md) | M10 — Python pipeline & notebook |
+
+---
+
+## 💻 Compilation & Verification Status
+
+All static guidelines and test validation checks are 100% green and certified:
+* **Analysis**: `No issues found!` (0 errors, 0 warnings).
+* **Unit Tests**: `All tests passed!` (100% green).

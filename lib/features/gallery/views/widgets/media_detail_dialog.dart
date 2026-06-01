@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:ui' as ui;
+import 'dart:async';
 import '../../../../core/constants/app_constants.dart';
 import '../../models/media_item.dart';
 import '../../providers/yolo_face_provider.dart';
@@ -37,125 +39,173 @@ class MediaDetailDialog extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final boxWidth = constraints.maxWidth;
-                  final boxHeight = constraints.maxHeight;
-
-                  return Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Positioned.fill(
-                        child: item.isLocal
-                            ? Image.memory(item.bytes!, fit: BoxFit.contain)
-                            : Image.network(item.url!, fit: BoxFit.contain),
+              child: FutureBuilder<Size>(
+                future: _getImageSize(item),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    return const Center(
+                      child: CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(AppConstants.primary),
                       ),
-                      
-                      // Dimming layer for aesthetic face detection effect
-                      Positioned.fill(
-                        child: Container(
-                          color: Colors.black.withValues(alpha: 0.25),
-                        ),
-                      ),
+                    );
+                  }
 
-                      // Face Bounding Box Overlays
-                      Consumer<YoloFaceProvider>(
-                        builder: (context, yoloFaceProv, child) {
-                          final faces = yoloFaceProv.getFacesForMediaItem(item.id);
+                  final imgSize = snapshot.data!;
+                  final imageAspectRatio = imgSize.width / imgSize.height;
 
-                          return Stack(
-                            children: faces.map((face) {
-                              final left = face.x * boxWidth;
-                              final top = face.y * boxHeight;
-                              final width = face.width * boxWidth;
-                              final height = face.height * boxHeight;
+                  return LayoutBuilder(
+                    builder: (context, constraints) {
+                      final boxWidth = constraints.maxWidth;
+                      final boxHeight = constraints.maxHeight;
+                      final boxAspectRatio = boxWidth / boxHeight;
 
-                              final isIdentified = face.isIdentified;
-                              final borderAccentColor = isIdentified
-                                  ? AppConstants.accent // Cyan
-                                  : AppConstants.secondary; // Pink
+                      // Perfect BoxFit.contain positioning calculation!
+                      double renderedWidth;
+                      double renderedHeight;
+                      double offsetX;
+                      double offsetY;
 
-                              return Positioned(
-                                left: left,
-                                top: top,
-                                width: width,
-                                height: height,
-                                child: GestureDetector(
-                                  onTap: () {
-                                    FaceLabelingDialog.show(context, face, item.sha256);
-                                  },
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      border: Border.all(
-                                        color: borderAccentColor,
-                                        width: 2.5,
-                                      ),
-                                      borderRadius: BorderRadius.circular(8),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: borderAccentColor.withValues(alpha: 0.3),
-                                          blurRadius: 8,
-                                          spreadRadius: 1,
-                                        ),
-                                      ],
-                                    ),
-                                    child: Stack(
-                                      clipBehavior: Clip.none,
-                                      children: [
-                                        Positioned(
-                                          top: -24,
-                                          left: -2,
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                            decoration: BoxDecoration(
+                      if (imageAspectRatio > boxAspectRatio) {
+                        // Image is wider than container (pillarboxed)
+                        renderedWidth = boxWidth;
+                        renderedHeight = boxWidth / imageAspectRatio;
+                        offsetX = 0.0;
+                        offsetY = (boxHeight - renderedHeight) / 2.0;
+                      } else {
+                        // Image is taller than container (letterboxed)
+                        renderedHeight = boxHeight;
+                        renderedWidth = boxHeight * imageAspectRatio;
+                        offsetX = (boxWidth - renderedWidth) / 2.0;
+                        offsetY = 0.0;
+                      }
+
+                      return Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Positioned.fill(
+                            child: item.isLocal
+                                ? Image.memory(item.bytes!, fit: BoxFit.contain)
+                                : Image.network(item.url!, fit: BoxFit.contain),
+                          ),
+                          
+                          // Dimming layer matching the EXACT visible image bounds!
+                          Positioned(
+                            left: offsetX,
+                            top: offsetY,
+                            width: renderedWidth,
+                            height: renderedHeight,
+                            child: Container(
+                              color: Colors.black.withValues(alpha: 0.25),
+                            ),
+                          ),
+
+                          // Face Bounding Box Overlays positioned EXACTLY on top of the visible image region!
+                          Positioned(
+                            left: offsetX,
+                            top: offsetY,
+                            width: renderedWidth,
+                            height: renderedHeight,
+                            child: Consumer<YoloFaceProvider>(
+                              builder: (context, yoloFaceProv, child) {
+                                final faces = yoloFaceProv.getFacesForMediaItem(item.id);
+
+                                return Stack(
+                                  children: faces.map((face) {
+                                    // Scale coordinates exactly inside the rendered visible region!
+                                    final left = face.x * renderedWidth;
+                                    final top = face.y * renderedHeight;
+                                    final width = face.width * renderedWidth;
+                                    final height = face.height * renderedHeight;
+
+                                    final isIdentified = face.isIdentified;
+                                    final borderAccentColor = isIdentified
+                                        ? AppConstants.accent // Cyan
+                                        : AppConstants.secondary; // Pink
+
+                                    return Positioned(
+                                      left: left,
+                                      top: top,
+                                      width: width,
+                                      height: height,
+                                      child: GestureDetector(
+                                        onTap: () {
+                                          FaceLabelingDialog.show(context, face, item.sha256);
+                                        },
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            border: Border.all(
                                               color: borderAccentColor,
-                                              borderRadius: BorderRadius.circular(4),
+                                              width: 2.5,
                                             ),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(
-                                                  isIdentified ? Icons.face : Icons.help_outline,
-                                                  size: 10,
-                                                  color: Colors.white,
-                                                ),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  isIdentified
-                                                      ? '${face.name} (${face.ageVariant ?? 'Verified'})'
-                                                      : 'Unrecognized - Tap to label',
-                                                  style: const TextStyle(
-                                                    fontSize: 9.5,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.white,
+                                            borderRadius: BorderRadius.circular(8),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: borderAccentColor.withValues(alpha: 0.3),
+                                                blurRadius: 8,
+                                                spreadRadius: 1,
+                                              ),
+                                            ],
+                                          ),
+                                          child: Stack(
+                                            clipBehavior: Clip.none,
+                                            children: [
+                                              Positioned(
+                                                top: -24,
+                                                left: -2,
+                                                child: Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                                  decoration: BoxDecoration(
+                                                    color: borderAccentColor,
+                                                    borderRadius: BorderRadius.circular(4),
+                                                  ),
+                                                  child: Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Icon(
+                                                        isIdentified ? Icons.face : Icons.help_outline,
+                                                        size: 10,
+                                                        color: Colors.white,
+                                                      ),
+                                                      const SizedBox(width: 4),
+                                                      Text(
+                                                        isIdentified
+                                                            ? '${face.name} (${face.ageVariant ?? 'Verified'})'
+                                                            : 'Unrecognized - Tap to label',
+                                                        style: const TextStyle(
+                                                          fontSize: 9.5,
+                                                          fontWeight: FontWeight.bold,
+                                                          color: Colors.white,
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ),
                                                 ),
-                                              ],
-                                            ),
+                                              ),
+                                            ],
                                           ),
                                         ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                          );
-                        },
-                      ),
-
-                      Positioned(
-                        top: 16,
-                        right: 16,
-                        child: CircleAvatar(
-                          backgroundColor: Colors.black54,
-                          child: IconButton(
-                            icon: const Icon(Icons.close, color: Colors.white),
-                            onPressed: () => Navigator.pop(context),
+                                      ),
+                                    );
+                                  }).toList(),
+                                );
+                              },
+                            ),
                           ),
-                        ),
-                      ),
-                    ],
+
+                          Positioned(
+                            top: 16,
+                            right: 16,
+                            child: CircleAvatar(
+                              backgroundColor: Colors.black54,
+                              child: IconButton(
+                                icon: const Icon(Icons.close, color: Colors.white),
+                                onPressed: () => Navigator.pop(context),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   );
                 },
               ),
@@ -307,19 +357,37 @@ class MediaDetailDialog extends StatelessWidget {
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 12, color: color),
+          Padding(
+            padding: const EdgeInsets.only(top: 1.0),
+            child: Icon(icon, size: 12, color: color),
+          ),
           const SizedBox(width: 6),
-          Text(
-            text,
-            style: TextStyle(
-              fontSize: 11,
-              color: color.withValues(alpha: 0.9),
-              fontWeight: FontWeight.w500,
+          Flexible(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 11,
+                color: color.withValues(alpha: 0.9),
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  Future<Size> _getImageSize(MediaItem item) async {
+    if (item.bytes != null && item.bytes!.isNotEmpty) {
+      final completer = Completer<Size>();
+      ui.decodeImageFromList(item.bytes!, (ui.Image img) {
+        completer.complete(Size(img.width.toDouble(), img.height.toDouble()));
+      });
+      return completer.future;
+    }
+    // Dynamic default fallback for web/mock assets
+    return const Size(800, 600);
   }
 }

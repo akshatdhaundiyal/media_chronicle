@@ -1,0 +1,50 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# yolo_config.yaml — Default Configuration for the YOLO Face-Detection Pipeline
+# ──────────────────────────────────────────────────────────────────────────────
+#
+# This YAML file provides project-wide default values for all YOLO scripts.
+# Values here are overridden by environment variables (YOLO_*) and CLI flags.
+#
+# Priority chain (highest wins):
+#   CLI flags  >  Environment variables  >  This YAML file  >  Hardcoded defaults
+#
+# To use a custom config: copy this file, edit it, and the scripts will
+# pick it up automatically from the scripts/ directory.
+# ──────────────────────────────────────────────────────────────────────────────
+
+# ── Model Architecture ───────────────────────────────────────────────────────
+# YOLOv8 variant: n (nano), s (small), m (medium), l (large), x (extra-large)
+# Nano is the fastest for iteration; use 's' or 'm' for production accuracy.
+model_variant: "n"
+
+# Path to a custom pretrained checkpoint (.pt file).
+# Leave null to auto-download COCO-pretrained weights.
+pretrained_weights: null
+
+# ── Training Hyperparameters ─────────────────────────────────────────────────
+image_size: 640           # Input resolution (square). 320 for fast experiments.
+epochs: 30                # Total training epochs.
+batch_size: 16            # Mini-batch size. Reduce if running out of VRAM.
+lr: 0.01                  # Initial learning rate (SGD or AdamW).
+momentum: 0.937           # SGD momentum coefficient.
+weight_decay: 0.0005      # L2 regularisation penalty.
+
+# ── Detection Thresholds ─────────────────────────────────────────────────────
+confidence_threshold: 0.25  # Minimum confidence for NMS post-processing.
+iou_threshold: 0.45         # IoU overlap threshold for NMS suppression.
+
+# ── Hardware & Reproducibility ───────────────────────────────────────────────
+device: "cpu"             # "cpu", "0" (first GPU), "cuda:0", "mps" (Apple).
+workers: 2                # DataLoader parallel workers (lower on Windows).
+seed: 42                  # Random seed for reproducible training runs.
+
+# ── Augmentation & Fine-Tuning ───────────────────────────────────────────────
+augment: true             # Enable online augmentation during training.
+freeze_backbone: 0        # Freeze first N backbone layers (0 = train all).
+                          # Set to 10 for aggressive transfer learning.
+
+# ── Export ───────────────────────────────────────────────────────────────────
+export_format: "onnx"     # Target format: onnx, torchscript, tflite, etc.
+
+# ── Logging ──────────────────────────────────────────────────────────────────
+verbose: false            # Set to true for debug-level console output.

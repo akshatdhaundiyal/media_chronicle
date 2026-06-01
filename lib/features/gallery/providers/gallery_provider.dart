@@ -179,12 +179,28 @@ class GalleryProvider extends ChangeNotifier {
       final bytes = item.bytes ?? Uint8List(0);
 
       try {
-        final results = await LlmHelper.analyzeImage(
-          bytes: bytes,
-          modelName: task.ollamaModel,
-          endpointUrl: task.ollamaUrl,
-          preIdentifiedFaces: task.preIdentifiedFaces,
-        );
+        Map<String, String>? results;
+        bool modelExists = false;
+
+        if (_isLlmAvailable) {
+          // Double-check if the selected model actually exists on the local Ollama server.
+          // If the pulled list is empty, it could mean a network mismatch, so we only enforce if the list has models.
+          modelExists = _pulledModels.isEmpty || 
+                        _pulledModels.contains(task.ollamaModel) ||
+                        _pulledModels.any((m) => m.toLowerCase() == task.ollamaModel.toLowerCase() ||
+                                                 m.toLowerCase().startsWith('${task.ollamaModel.toLowerCase()}:'));
+
+          if (modelExists) {
+            results = await LlmHelper.analyzeImage(
+              bytes: bytes,
+              modelName: task.ollamaModel,
+              endpointUrl: task.ollamaUrl,
+              preIdentifiedFaces: task.preIdentifiedFaces,
+            );
+          } else {
+            debugPrint('Ollama VLM local warning: Model "${task.ollamaModel}" not found in pulled models list: $_pulledModels');
+          }
+        }
 
         if (results != null) {
           final rawTags = results['tags'] ?? '';
@@ -215,7 +231,7 @@ class GalleryProvider extends ChangeNotifier {
           notifyListeners();
         } else {
           // VLM analysis failed/offline. Engage fallback simulator!
-          debugPrint('Ollama VLM analysis failed or timed out. Engaging high-fidelity smart visual fallback simulator sequentially.');
+          debugPrint('Ollama VLM analysis failed, timed out, or model missing. Engaging high-fidelity smart visual fallback simulator sequentially.');
           final fallbackResults = await LlmHelper.getSmartSimulatedAnalysis(bytes);
 
           final rawTags = fallbackResults['tags'] ?? '';
@@ -245,9 +261,12 @@ class GalleryProvider extends ChangeNotifier {
           }
           notifyListeners();
 
-          task.onError?.call(
-            'Failed to perform VLM analysis: Local Ollama VLM server at "${task.ollamaUrl}" is offline, unreachable, or the model "${task.ollamaModel}" is not loaded.\n\nSmart visual fallbacks have been automatically engaged to keep your gallery functional!'
-          );
+          final isModelMissing = _isLlmAvailable && !modelExists;
+          final errorMsg = isModelMissing
+              ? 'Failed to perform VLM analysis: The selected vision model "${task.ollamaModel}" was not found on your local Ollama server.\n\nTo download it, run this command in your terminal:\n> ollama pull ${task.ollamaModel}\n\nSmart visual fallbacks have been automatically engaged to keep your gallery functional!'
+              : 'Failed to perform VLM analysis: Local Ollama VLM server at "${task.ollamaUrl}" is offline, unreachable, or still starting up.\n\nSmart visual fallbacks have been automatically engaged to keep your gallery functional!';
+
+          task.onError?.call(errorMsg);
         }
       } catch (e) {
         final index = _items.indexWhere((e) => e.id == item.id);

@@ -1,0 +1,35 @@
+[project]
+name = "media-chronicle-ml"
+version = "0.1.0"
+description = "YOLOv8 face-detection and active learning retraining pipeline for Media Chronicle"
+readme = "scripts/README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "ultralytics>=8.2.0",
+    "pyyaml>=6.0",
+    "rich>=13.0",
+    "albumentations>=1.4.0",
+    "opencv-python-headless>=4.8.0",
+    "Pillow>=10.0",
+    "numpy>=1.24.0",
+    "pandas>=2.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=6.29.0",
+    "jupyter>=1.0.0",
+    "matplotlib>=3.7.0",
+    "seaborn>=0.12.0",
+    "scikit-learn>=1.2.0",
+]
+
+[tool.uv]
+package = false
+dev-dependencies = [
+    "ipykernel>=6.29.0",
+    "jupyter>=1.0.0",
+    "matplotlib>=3.7.0",
+    "seaborn>=0.12.0",
+    "scikit-learn>=1.2.0",
+]

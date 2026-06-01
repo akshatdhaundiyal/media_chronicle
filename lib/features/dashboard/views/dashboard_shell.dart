@@ -28,6 +28,8 @@ class DashboardShell extends StatefulWidget {
 }
 
 class _DashboardShellState extends State<DashboardShell> {
+  GalleryProvider? _galleryProv;
+
   @override
   void initState() {
     super.initState();
@@ -37,37 +39,70 @@ class _DashboardShellState extends State<DashboardShell> {
       if (!mounted) return;
       
       // Access provider references safely using context.read.
-      final galleryProv = context.read<GalleryProvider>();
+      _galleryProv = context.read<GalleryProvider>();
       final settings = context.read<SettingsProvider>();
       
       // Spawns the background Ollama status polling timers.
-      galleryProv.startLlmPoller(settings.ollamaUrl);
+      _galleryProv?.startLlmPoller(settings.ollamaUrl);
 
-      // Automated Model Auto-Selection Path:
-      // If VLM Ollama services are active but settings target a model not currently present
-      // in the model registry, search for matching variants (e.g. tag suffix variations like "gemma4:latest")
-      // or fall back cleanly to the first available model to ensure operational continuity.
-      if (galleryProv.isLlmAvailable && galleryProv.pulledModels.isNotEmpty) {
-        final currentModel = settings.ollamaModel;
-        if (!galleryProv.pulledModels.contains(currentModel)) {
-          final matchingVariant = galleryProv.pulledModels.firstWhere(
-            (model) => model.toLowerCase().startsWith('${currentModel.toLowerCase()}:') ||
-                       model.toLowerCase() == currentModel.toLowerCase(),
+      // Register a listener so that as soon as the background poller returns
+      // the list of pulled models, we dynamically select a valid available model!
+      _galleryProv?.addListener(_autoSelectModelListener);
+    });
+  }
+
+  @override
+  void dispose() {
+    // Unregister the listener safely using the stored provider reference
+    _galleryProv?.removeListener(_autoSelectModelListener);
+    super.dispose();
+  }
+
+  /// Reactive listener that checks VLM availability and dynamically maps selected
+  /// models to direct suffix matches or installed vision/first available fallbacks.
+  void _autoSelectModelListener() {
+    if (!mounted) return;
+
+    final galleryProv = context.read<GalleryProvider>();
+    final settings = context.read<SettingsProvider>();
+
+    if (galleryProv.isLlmAvailable && galleryProv.pulledModels.isNotEmpty) {
+      final currentModel = settings.ollamaModel;
+      if (!galleryProv.pulledModels.contains(currentModel)) {
+        // 1. Search for direct suffix matches (e.g. "gemma4:latest" or case variations)
+        final matchingVariant = galleryProv.pulledModels.firstWhere(
+          (model) => model.toLowerCase().startsWith('${currentModel.toLowerCase()}:') ||
+                     model.toLowerCase() == currentModel.toLowerCase(),
+          orElse: () => '',
+        );
+
+        if (matchingVariant.isNotEmpty) {
+          settings.updateOllamaModel(matchingVariant);
+          debugPrint('Auto-Selected VLM model variant: $matchingVariant (Target model $currentModel resolved successfully)');
+        } else {
+          // 2. Fall back to a known vision/multimodal model if present in the pulled list
+          final visionModel = galleryProv.pulledModels.firstWhere(
+            (model) => model.toLowerCase().contains('gemma') ||
+                       model.toLowerCase().contains('llava') ||
+                       model.toLowerCase().contains('pali') ||
+                       model.toLowerCase().contains('vision'),
             orElse: () => '',
           );
 
-          if (matchingVariant.isNotEmpty) {
-            settings.updateOllamaModel(matchingVariant);
-            debugPrint('Auto-Selected VLM model variant: $matchingVariant (Target model $currentModel resolved successfully)');
+          if (visionModel.isNotEmpty) {
+            settings.updateOllamaModel(visionModel);
+            debugPrint('Auto-Selected installed vision model: $visionModel (Target model $currentModel was not found)');
           } else {
+            // 3. Fall back to the first available model in the list
             final fallbackModel = galleryProv.pulledModels.first;
             settings.updateOllamaModel(fallbackModel);
-            debugPrint('Auto-Selected installed VLM model: $fallbackModel (Target model $currentModel was not found)');
+            debugPrint('Auto-Selected first available model: $fallbackModel (Target model $currentModel was not found)');
           }
         }
       }
-    });
+    }
   }
+
 
   @override
   Widget build(BuildContext context) {

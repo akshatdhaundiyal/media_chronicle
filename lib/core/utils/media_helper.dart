@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'dart:io' as io;
 import 'package:flutter/foundation.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
@@ -55,7 +56,7 @@ class MediaHelper {
       final FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: type,
         allowedExtensions: allowedExtensions,
-        withData: true, // Necessary on Web to read file bytes directly
+        withData: true,
       );
 
       if (result != null && result.files.isNotEmpty) {
@@ -69,10 +70,12 @@ class MediaHelper {
           mediaType = 'video';
         }
 
+        final Uint8List? bytes = file.bytes ?? (file.path != null ? io.File(file.path!).readAsBytesSync() : null);
+
         return MediaPickResult(
           name: file.name,
-          path: kIsWeb ? file.name : (file.path ?? file.name),
-          bytes: file.bytes,
+          path: file.path ?? file.name,
+          bytes: bytes,
           type: mediaType,
         );
       }
@@ -92,13 +95,14 @@ class MediaHelper {
         type: type,
         allowedExtensions: allowedExtensions,
         allowMultiple: true,
-        withData: true, // Necessary on Web to read file bytes directly
+        withData: true,
       );
 
       if (result != null && result.files.isNotEmpty) {
         final List<MediaPickResult> pickedList = [];
         for (final file in result.files) {
-          if (file.bytes != null) {
+          final Uint8List? bytes = file.bytes ?? (file.path != null ? io.File(file.path!).readAsBytesSync() : null);
+          if (bytes != null) {
             String mediaType = 'document';
             final extension = file.extension?.toLowerCase() ?? '';
             if (['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(extension)) {
@@ -109,8 +113,8 @@ class MediaHelper {
 
             pickedList.add(MediaPickResult(
               name: file.name,
-              path: kIsWeb ? file.name : (file.path ?? file.name),
-              bytes: file.bytes,
+              path: file.path ?? file.name,
+              bytes: bytes,
               type: mediaType,
             ));
           }
@@ -122,6 +126,7 @@ class MediaHelper {
     }
     return [];
   }
+
 
   /// Helper to trigger a simulated media pick for quick UI testing or when browser APIs are constrained
   static Future<MediaPickResult> pickMockMedia() async {

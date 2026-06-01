@@ -29,18 +29,26 @@ class SettingsProvider extends ChangeNotifier {
   /// System-allocated max size limit for this client (15.0 GB free-tier limit).
   final double _storageTotalGB = 15.0;
 
-  // Local Vision LLM / Gemma 4 Configurations
+  // Local Vision LLM / Ollama VLM Configurations
   /// Target host URL for the local Ollama vision LLM server.
   String _ollamaUrl = 'http://localhost:11434';
 
-  /// Active vision VLM model parsed during image ingestions.
-  String _ollamaModel = 'gemma4';
+  /// Active vision VLM model parsed during image ingestions (empty initially to auto-detect).
+  String _ollamaModel = '';
 
   /// Flag indicating whether automated VLM analysis executes upon image import.
   bool _autoTagEnabled = true;
 
   /// Flag governing independent YOLO executions (skipping subsequent VLM loops).
   bool _yoloIndependent = false;
+
+  // PostgreSQL Connection Parameters
+  String _postgresHost = 'localhost';
+  int _postgresPort = 5432;
+  String _postgresDatabase = 'chronicle';
+  String _postgresUser = 'postgres';
+  String _postgresPassword = 'password';
+  bool _postgresSsl = false;
 
   // Reactive getters exposing state properties:
   String get username => _username;
@@ -59,6 +67,14 @@ class SettingsProvider extends ChangeNotifier {
   String get ollamaModel => _ollamaModel;
   bool get autoTagEnabled => _autoTagEnabled;
   bool get yoloIndependent => _yoloIndependent;
+
+  // PostgreSQL Getters
+  String get postgresHost => _postgresHost;
+  int get postgresPort => _postgresPort;
+  String get postgresDatabase => _postgresDatabase;
+  String get postgresUser => _postgresUser;
+  String get postgresPassword => _postgresPassword;
+  bool get postgresSsl => _postgresSsl;
 
   /// Updates global profile display name.
   void updateUsername(String newName) {
@@ -119,4 +135,36 @@ class SettingsProvider extends ChangeNotifier {
     _yoloIndependent = val;
     notifyListeners();
   }
+
+  // PostgreSQL Setters
+  void updatePostgresHost(String host) {
+    _postgresHost = host;
+    notifyListeners();
+  }
+
+  void updatePostgresPort(int port) {
+    _postgresPort = port;
+    notifyListeners();
+  }
+
+  void updatePostgresDatabase(String db) {
+    _postgresDatabase = db;
+    notifyListeners();
+  }
+
+  void updatePostgresUser(String user) {
+    _postgresUser = user;
+    notifyListeners();
+  }
+
+  void updatePostgresPassword(String password) {
+    _postgresPassword = password;
+    notifyListeners();
+  }
+
+  void togglePostgresSsl(bool val) {
+    _postgresSsl = val;
+    notifyListeners();
+  }
 }
+

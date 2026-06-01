@@ -32,6 +32,10 @@ class YoloFaceProvider extends ChangeNotifier {
   /// Scrolling training terminal output lines.
   final List<String> _trainingLogs = [];
 
+  /// The active offline neural classifier.
+  SingleLayerPerceptron? _classifier;
+
+
   // YOLO Edge Model connection status:
   /// Tracks whether the local edge detection model engine is active.
   bool _isYoloAvailable = true;
@@ -114,12 +118,13 @@ class YoloFaceProvider extends ChangeNotifier {
 
     for (int i = 0; i < faceCount; i++) {
       final faceId = 'face_${item.id}_$i';
+      // Center faces deterministically in the logical upper-middle region where human faces naturally reside!
+      final double width = 0.13 + random.nextDouble() * 0.05;  // Proportional face width (13% to 18%)
+      final double height = width * 1.25;                      // Proportional height for human faces (1.25x width)
       
-      // Calculate random relative bounding box
-      final x = 0.1 + random.nextDouble() * 0.5;
-      final y = 0.1 + random.nextDouble() * 0.4;
-      final width = 0.15 + random.nextDouble() * 0.15;
-      final height = 0.2 + random.nextDouble() * 0.15;
+      // Distribute multiple faces horizontally using the index (i) to prevent ugly overlaps!
+      final double x = 0.22 + (i * 0.28) + random.nextDouble() * 0.06;
+      final double y = 0.15 + random.nextDouble() * 0.10;       // Keep faces elegantly within the upper photographic third band
 
       // Generate a face feature embedding in 2D space
       // Let's decide if this face is close to a known cluster
@@ -300,37 +305,49 @@ class YoloFaceProvider extends ChangeNotifier {
     return maxSuffix + 1;
   }
 
-  /// Triggers a highly premium, simulated neural network backpropagation training loop.
-  /// Shows progressive loss reduction and accuracy improvement in the UI.
+  /// Triggers an actual, offline neural network backpropagation training loop in pure Dart.
+  /// Shows progressive real loss reduction and accuracy improvement in the UI.
   void retrainModel() {
     if (_isTraining) return;
+
+    final classes = enrolledNames;
+    if (classes.isEmpty) {
+      _trainingLogs.clear();
+      _trainingLogs.add('[YOLO v8 active-learning] Error: No enrolled identities found to train on. Retraining aborted.');
+      notifyListeners();
+      return;
+    }
+
+    final trainingSamples = _detectedFaces.where((f) => f.isIdentified && f.name != null).toList();
+    if (trainingSamples.isEmpty) {
+      _trainingLogs.clear();
+      _trainingLogs.add('[YOLO v8 active-learning] Error: No training face frames found. Retraining aborted.');
+      notifyListeners();
+      return;
+    }
 
     _isTraining = true;
     _currentEpoch = 0;
     _trainingLogs.clear();
-    _trainingLogs.add('[YOLO v8 active-learning] Initializing fine-tuning layers...');
-    _trainingLogs.add('[YOLO v8 active-learning] Loading ${enrolledNames.length} enrolled identities with ${_detectedFaces.where((f)=>f.isIdentified).length} training frames...');
-    _trainingLogs.add('[YOLO v8 active-learning] SGD Optimizer loaded (lr=0.005, momentum=0.9)');
+    _trainingLogs.add('[YOLO v8 active-learning] Initializing offline multi-class softmax layers...');
+    _trainingLogs.add('[YOLO v8 active-learning] Loading ${classes.length} enrolled identities with ${trainingSamples.length} training frames...');
+    _trainingLogs.add('[YOLO v8 active-learning] SGD Optimizer loaded (lr=0.05, momentum=0.0)');
     notifyListeners();
 
-    double loss = 0.72 + (Random().nextDouble() * 0.15);
-    double acc = 0.70 + (Random().nextDouble() * 0.08);
+    // Instantiate and train Perceptron classifier
+    _classifier = SingleLayerPerceptron(classes);
 
     Timer.periodic(const Duration(milliseconds: 250), (timer) {
       _currentEpoch++;
       
-      // Train calculation step
-      loss -= (loss * 0.16) + (Random().nextDouble() * 0.02);
-      if (loss < 0.01) loss = 0.008 + Random().nextDouble() * 0.003;
-
-      acc += ((1.0 - acc) * 0.18) + (Random().nextDouble() * 0.01);
-      if (acc > 0.99) acc = 0.985 + Random().nextDouble() * 0.01;
-
-      _currentLoss = loss;
-      _currentAccuracy = acc;
+      // Perform 1 epoch of backpropagation training
+      final metrics = _classifier!.trainEpoch(trainingSamples, 0.05);
+      
+      _currentLoss = metrics['loss'] ?? 0.0;
+      _currentAccuracy = metrics['accuracy'] ?? 0.0;
 
       _trainingLogs.add(
-        'Epoch $_currentEpoch/$_totalEpochs - learning_rate: 0.005 - loss: ${loss.toStringAsFixed(4)} - training_accuracy: ${(acc * 100).toStringAsFixed(1)}%'
+        'Epoch $_currentEpoch/$_totalEpochs - learning_rate: 0.05 - loss: ${_currentLoss.toStringAsFixed(4)} - training_accuracy: ${(_currentAccuracy * 100).toStringAsFixed(1)}%'
       );
 
       // Trigger automatic recognition matching for remaining unidentified faces!
@@ -362,39 +379,81 @@ class YoloFaceProvider extends ChangeNotifier {
     final random = Random();
     int count = 0;
 
-    for (final face in unIdentified) {
-      // Find the closest enrolled center
-      for (final name in enrolledNames) {
-        final enrolledForName = _detectedFaces
-            .where((f) => f.isIdentified && f.name == name)
-            .toList();
+    // Use trained classifier if available
+    if (_classifier != null && enrolledNames.isNotEmpty) {
+      final classes = enrolledNames;
+      for (final face in unIdentified) {
+        final probs = _classifier!.predict(face.embedding);
+        if (probs.isEmpty) continue;
 
-        for (final enrolled in enrolledForName) {
-          final dist = getEmbeddingDistance(face.embedding, enrolled.embedding);
-          
-          // As model learns, the threshold gets wider (better generalization)
-          final threshold = finalSweep ? 18.0 : 12.0;
-
-          if (dist < threshold) {
-            // Auto-recognize this face!
-            final idx = _detectedFaces.indexWhere((f) => f.id == face.id);
-            if (idx != -1) {
-              _detectedFaces[idx] = face.copyWith(
-                name: name,
-                isIdentified: true,
-                ageVariant: 'Auto-Recognized (${(85.0 + random.nextDouble() * 13).toStringAsFixed(1)}%)',
-              );
-              final updated = _detectedFaces[idx];
-              _trainingLogs.add('[Model Inference SUCCESS] Auto-classified ${face.id.substring(0, min(8, face.id.length))} as "$name"');
-              count++;
-              
-              // Sync background auto-recognized face to PostgreSQL yolo_faces table
-              PostgresSyncService().syncYoloFace(updated, face.mediaItemSha256 ?? 'sha256_mock_${face.mediaItemId}');
-              break;
-            }
+        // Find index of highest probability prediction
+        double maxProb = -1.0;
+        int bestIdx = -1;
+        for (int i = 0; i < probs.length; i++) {
+          if (probs[i] > maxProb) {
+            maxProb = probs[i];
+            bestIdx = i;
           }
         }
-        if (face.isIdentified) break;
+
+        // Apply dynamic confidence boundaries: 82% on final sweep, 88% mid-training checkpoint
+        final threshold = finalSweep ? 0.82 : 0.88;
+
+        if (bestIdx != -1 && maxProb >= threshold) {
+          final predictedName = classes[bestIdx];
+          final idx = _detectedFaces.indexWhere((f) => f.id == face.id);
+          if (idx != -1) {
+            _detectedFaces[idx] = face.copyWith(
+              name: predictedName,
+              isIdentified: true,
+              ageVariant: 'Auto-Recognized (${(maxProb * 100).toStringAsFixed(1)}%)',
+            );
+            final updated = _detectedFaces[idx];
+            _trainingLogs.add(
+              '[Model Inference SUCCESS] Auto-classified ${face.id.substring(0, min(8, face.id.length))} as "$predictedName" with ${(maxProb * 100).toStringAsFixed(1)}% probability'
+            );
+            count++;
+
+            // Sync background auto-recognized face to PostgreSQL yolo_faces table
+            PostgresSyncService().syncYoloFace(updated, face.mediaItemSha256 ?? 'sha256_mock_${face.mediaItemId}');
+          }
+        }
+      }
+    } else {
+      // Fallback distance-based mapping if classifier is uninitialized
+      for (final face in unIdentified) {
+        for (final name in enrolledNames) {
+          final enrolledForName = _detectedFaces
+              .where((f) => f.isIdentified && f.name == name)
+              .toList();
+
+          for (final enrolled in enrolledForName) {
+            final dist = getEmbeddingDistance(face.embedding, enrolled.embedding);
+            
+            // As model learns, the threshold gets wider (better generalization)
+            final threshold = finalSweep ? 18.0 : 12.0;
+
+            if (dist < threshold) {
+              // Auto-recognize this face!
+              final idx = _detectedFaces.indexWhere((f) => f.id == face.id);
+              if (idx != -1) {
+                _detectedFaces[idx] = face.copyWith(
+                  name: name,
+                  isIdentified: true,
+                  ageVariant: 'Auto-Recognized (${(85.0 + random.nextDouble() * 13).toStringAsFixed(1)}%)',
+                );
+                final updated = _detectedFaces[idx];
+                _trainingLogs.add('[Model Inference SUCCESS] Auto-classified ${face.id.substring(0, min(8, face.id.length))} as "$name"');
+                count++;
+                
+                // Sync background auto-recognized face to PostgreSQL yolo_faces table
+                PostgresSyncService().syncYoloFace(updated, face.mediaItemSha256 ?? 'sha256_mock_${face.mediaItemId}');
+                break;
+              }
+            }
+          }
+          if (face.isIdentified) break;
+        }
       }
     }
 
@@ -407,3 +466,113 @@ class YoloFaceProvider extends ChangeNotifier {
     return _detectedFaces.where((f) => f.mediaItemId == mediaItemId).toList();
   }
 }
+
+/// A pure-Dart, 100% offline mathematical implementation of a Single-Layer Perceptron.
+///
+/// Designed as a Multi-Class Softmax Classifier (Logistic Regression) optimized to classify
+/// 2D vector face embeddings [x, y] to distinct enrolled user identity keys on the client.
+class SingleLayerPerceptron {
+  final List<String> classes;
+  late final List<List<double>> weights; // Dimensions: K classes x 2 inputs
+  late final List<double> biases; // Dimensions: K classes
+
+  SingleLayerPerceptron(this.classes) {
+    final rand = Random(42); // Deterministic seed for reproducible online training behavior
+    weights = List.generate(
+      classes.length,
+      (_) => [(rand.nextDouble() - 0.5) * 0.1, (rand.nextDouble() - 0.5) * 0.1],
+    );
+    biases = List.filled(classes.length, 0.0);
+  }
+
+  /// Evaluates class probabilities for a 2D facial vector embedding using Softmax.
+  List<double> predict(List<double> embedding) {
+    if (classes.isEmpty) return [];
+    if (classes.length == 1) return [1.0];
+
+    // Normalize coordinates from visual scale [0..100] to neural scale [0..1]
+    final double xNorm = embedding[0] / 100.0;
+    final double yNorm = embedding[1] / 100.0;
+
+    final scores = List<double>.filled(classes.length, 0.0);
+    for (int i = 0; i < classes.length; i++) {
+      scores[i] = weights[i][0] * xNorm + weights[i][1] * yNorm + biases[i];
+    }
+
+    // Apply Numerical Stability Constant to prevent exponentials overflowing
+    final double maxScore = scores.reduce(max);
+    final exps = scores.map((s) => exp(s - maxScore)).toList();
+    final double sumExps = exps.reduce((a, b) => a + b);
+
+    return exps.map((e) => e / (sumExps == 0.0 ? 1.0 : sumExps)).toList();
+  }
+
+  /// Performs a single training epoch using Stochastic Gradient Descent (SGD) backpropagation.
+  ///
+  /// **Core Math**:
+  /// 1. Forward Pass: $P = Softmax(W \cdot X + B)$
+  /// 2. Loss Calculation: $CrossEntropyLoss = -ln(P_{target})$
+  /// 3. Backpropagation:
+  ///    - Loss derivative w.r.t linear outputs: $dZ_i = P_i - Y_i$ where $Y_i$ is target one-hot
+  ///    - Weight gradient: $dW_{i} = dZ_i \times X_d$
+  ///    - Bias gradient: $dB_i = dZ_i$
+  /// 4. Parameters Update: $W = W - lr \times dW$; $B = B - lr \times dB$
+  Map<String, double> trainEpoch(List<DetectedFace> trainingSamples, double lr) {
+    if (classes.isEmpty || trainingSamples.isEmpty) {
+      return {'loss': 0.0, 'accuracy': 1.0};
+    }
+    if (classes.length == 1) {
+      return {'loss': 0.0, 'accuracy': 1.0};
+    }
+
+    double cumulativeLoss = 0.0;
+    int matches = 0;
+
+    for (final face in trainingSamples) {
+      final targetIdx = classes.indexOf(face.name ?? '');
+      if (targetIdx == -1) continue;
+
+      final double xNorm = face.embedding[0] / 100.0;
+      final double yNorm = face.embedding[1] / 100.0;
+
+      // 1. Forward Pass
+      final probs = predict(face.embedding);
+      if (probs.isEmpty) continue;
+
+      // 2. Compute Loss & Record Accuracy matches
+      final double targetProb = probs[targetIdx].clamp(1e-15, 1.0);
+      cumulativeLoss += -log(targetProb);
+
+      double highestProb = -1.0;
+      int selectedIdx = -1;
+      for (int i = 0; i < probs.length; i++) {
+        if (probs[i] > highestProb) {
+          highestProb = probs[i];
+          selectedIdx = i;
+        }
+      }
+      if (selectedIdx == targetIdx) {
+        matches++;
+      }
+
+      // 3 & 4. Backpropagation Gradient Computation & Parameter Shift (Online SGD)
+      for (int i = 0; i < classes.length; i++) {
+        final double dZ = probs[i] - (i == targetIdx ? 1.0 : 0.0);
+        
+        final double dW0 = dZ * xNorm;
+        final double dW1 = dZ * yNorm;
+        final double dB = dZ;
+
+        weights[i][0] -= lr * dW0;
+        weights[i][1] -= lr * dW1;
+        biases[i] -= lr * dB;
+      }
+    }
+
+    return {
+      'loss': cumulativeLoss / trainingSamples.length,
+      'accuracy': matches / trainingSamples.length,
+    };
+  }
+}
+
