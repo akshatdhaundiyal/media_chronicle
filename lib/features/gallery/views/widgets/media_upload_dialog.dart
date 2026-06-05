@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../core/constants/app_constants.dart';
@@ -9,7 +9,7 @@ import '../../providers/gallery_provider.dart';
 import '../../providers/yolo_face_provider.dart';
 import '../../../settings/providers/settings_provider.dart';
 
-class MediaUploadDialog extends StatelessWidget {
+class MediaUploadDialog extends ConsumerWidget {
   const MediaUploadDialog({super.key});
 
   static void show(BuildContext context) {
@@ -20,8 +20,8 @@ class MediaUploadDialog extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final settings = context.read<SettingsProvider>();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(settingsProvider);
 
     return AlertDialog(
       backgroundColor: AppConstants.dialogBg,
@@ -54,7 +54,7 @@ class MediaUploadDialog extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    settings.autoTagEnabled
+                     settings.autoTagEnabled
                         ? 'Gemma 4 VLM Autotag active (${settings.ollamaModel})'
                         : 'VLM Auto-Tagging Disabled',
                     style: const TextStyle(fontSize: 11, color: AppConstants.textSecondary),
@@ -72,9 +72,9 @@ class MediaUploadDialog extends StatelessWidget {
         ),
         TextButton(
           onPressed: () async {
-            final galleryProv = Provider.of<GalleryProvider>(context, listen: false);
-            final yoloProv = Provider.of<YoloFaceProvider>(context, listen: false);
-            final settingsProv = Provider.of<SettingsProvider>(context, listen: false);
+            final galleryNotifier = ref.read(galleryProvider.notifier);
+            final yoloNotifier = ref.read(yoloFaceProvider.notifier);
+            final settingsProv = ref.read(settingsProvider);
             final messenger = ScaffoldMessenger.of(context);
             final navigator = Navigator.of(context);
 
@@ -91,7 +91,7 @@ class MediaUploadDialog extends StatelessWidget {
 
               String? preIdentifiedFaces;
               if (!settingsProv.yoloIndependent) {
-                final faces = yoloProv.runYoloDetection(
+                final faces = yoloNotifier.runYoloDetection(
                   newItem,
                   onError: (err) {
                     messenger.showSnackBar(
@@ -108,7 +108,7 @@ class MediaUploadDialog extends StatelessWidget {
                       .join(', ');
                 }
               } else {
-                yoloProv.runYoloDetection(
+                yoloNotifier.runYoloDetection(
                   newItem,
                   onError: (err) {
                     messenger.showSnackBar(
@@ -120,13 +120,13 @@ class MediaUploadDialog extends StatelessWidget {
                   },
                 );
               }
-              galleryProv.addMediaItem(
+              galleryNotifier.addMediaItem(
                 newItem,
                 ollamaUrl: settingsProv.ollamaUrl,
                 ollamaModel: settingsProv.ollamaModel,
                 autoTag: settingsProv.autoTagEnabled,
                 preIdentifiedFaces: preIdentifiedFaces,
-                onAnalyzeComplete: (item) {
+                onComplete: (item) {
                   // YOLO already ran, do nothing
                 },
                 onAnalyzeError: (err) {
@@ -148,9 +148,9 @@ class MediaUploadDialog extends StatelessWidget {
         ),
         ElevatedButton(
           onPressed: () async {
-            final galleryProv = Provider.of<GalleryProvider>(context, listen: false);
-            final yoloProv = Provider.of<YoloFaceProvider>(context, listen: false);
-            final settingsProv = Provider.of<SettingsProvider>(context, listen: false);
+            final galleryNotifier = ref.read(galleryProvider.notifier);
+            final yoloNotifier = ref.read(yoloFaceProvider.notifier);
+            final settingsProv = ref.read(settingsProvider);
             final messenger = ScaffoldMessenger.of(context);
             final navigator = Navigator.of(context);
 
@@ -169,7 +169,7 @@ class MediaUploadDialog extends StatelessWidget {
                   );
                   String? preIdentifiedFaces;
                   if (!settingsProv.yoloIndependent) {
-                    final faces = yoloProv.runYoloDetection(
+                    final faces = yoloNotifier.runYoloDetection(
                       newItem,
                       onError: (err) {
                         messenger.showSnackBar(
@@ -186,7 +186,7 @@ class MediaUploadDialog extends StatelessWidget {
                           .join(', ');
                     }
                   } else {
-                    yoloProv.runYoloDetection(
+                    yoloNotifier.runYoloDetection(
                       newItem,
                       onError: (err) {
                         messenger.showSnackBar(
@@ -198,13 +198,13 @@ class MediaUploadDialog extends StatelessWidget {
                       },
                     );
                   }
-                  galleryProv.addMediaItem(
+                  galleryNotifier.addMediaItem(
                     newItem,
                     ollamaUrl: settingsProv.ollamaUrl,
                     ollamaModel: settingsProv.ollamaModel,
                     autoTag: settingsProv.autoTagEnabled,
                     preIdentifiedFaces: preIdentifiedFaces,
-                    onAnalyzeComplete: (item) {
+                    onComplete: (item) {
                       // YOLO already ran, do nothing
                     },
                     onAnalyzeError: (err) {

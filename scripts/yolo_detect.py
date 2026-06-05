@@ -218,20 +218,23 @@ def run_detection(
     # ── §3.2  Load model ─────────────────────────────────────────────────
     weights = args.weights
     if weights is None:
-        # Try the project's trained best weights first.
-        default_best = cfg.project_root / "runs" / "train" / "weights" / "best.pt"
-        if default_best.exists():
-            weights = str(default_best)
-            logger.info("Using trained weights: %s", weights)
+        # Check if the user specified a custom pretrained weights path or registry key
+        if cfg.pretrained_weights:
+            weights = cfg.pretrained_weights
+            logger.info("Using configured custom weights: %s", weights)
         else:
-            weights = cfg.weights_path
-            logger.info("No trained weights found, using pretrained: %s", weights)
+            # Fallback to local default best.pt if no custom weights are configured
+            default_best = cfg.project_root / "runs" / "train" / "weights" / "best.pt"
+            if default_best.exists():
+                weights = str(default_best)
+                logger.info("Using trained weights fallback: %s", weights)
+            else:
+                weights = cfg.weights_path
+                logger.info("No custom weights configured or fallback found. Using default pretrained: %s", weights)
     else:
-        logger.info("Using specified weights: %s", weights)
+        logger.info("Using specified weights from CLI: %s", weights)
 
     model = YOLO(weights)
-
-    # ── §3.3  Configure output directory ─────────────────────────────────
     output_dir = args.output_dir or (cfg.project_root / "runs" / "detect")
     output_dir.mkdir(parents=True, exist_ok=True)
 

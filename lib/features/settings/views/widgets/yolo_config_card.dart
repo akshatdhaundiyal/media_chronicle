@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../providers/settings_provider.dart';
 import '../../../gallery/providers/yolo_face_provider.dart';
 
-class YoloConfigCard extends StatelessWidget {
+class YoloConfigCard extends ConsumerWidget {
   const YoloConfigCard({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final yoloProv = context.watch<YoloFaceProvider>();
-    final settingsProv = context.watch<SettingsProvider>();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final yoloState = ref.watch(yoloFaceProvider);
+    final settingsProv = ref.watch(settingsProvider);
 
     return Container(
       padding: const EdgeInsets.all(AppConstants.paddingLarge),
@@ -27,7 +27,7 @@ class YoloConfigCard extends StatelessWidget {
               Icon(Icons.face_outlined, color: AppConstants.secondary),
               SizedBox(width: 8),
               Text(
-                'YOLO v8 Face Classifier Weights',
+                'YOLO v8 Production Classifier (best.pt)',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -38,22 +38,22 @@ class YoloConfigCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           const Text(
-            'Simulate whether the edge neural weights file (yolov8n-face.tflite) is successfully loaded into active application memory.',
+            'Simulate whether the custom-trained production edge weights (best.tflite / best.pt) are successfully loaded into active application memory.',
             style: TextStyle(fontSize: 12, color: AppConstants.textSecondary),
           ),
           const SizedBox(height: 16),
           SwitchListTile(
             title: const Text('Edge Weights Loaded', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
             subtitle: Text(
-              yoloProv.isYoloAvailable 
+              yoloState.isYoloAvailable 
                   ? 'Processor active - Bounding box overlays online'
                   : 'Processor offline - Face identification paused',
               style: const TextStyle(fontSize: 11, color: AppConstants.textMuted),
             ),
-            value: yoloProv.isYoloAvailable,
+            value: yoloState.isYoloAvailable,
             activeThumbColor: AppConstants.secondary,
             contentPadding: EdgeInsets.zero,
-            onChanged: (val) => yoloProv.setYoloAvailable(val),
+            onChanged: (val) => ref.read(yoloFaceProvider.notifier).setYoloAvailable(val),
           ),
           const Divider(),
           SwitchListTile(
@@ -65,7 +65,7 @@ class YoloConfigCard extends StatelessWidget {
             value: settingsProv.yoloIndependent,
             activeThumbColor: AppConstants.secondary,
             contentPadding: EdgeInsets.zero,
-            onChanged: (val) => settingsProv.toggleYoloIndependent(val),
+            onChanged: (val) => ref.read(settingsProvider.notifier).toggleYoloIndependent(val),
           ),
         ],
       ),

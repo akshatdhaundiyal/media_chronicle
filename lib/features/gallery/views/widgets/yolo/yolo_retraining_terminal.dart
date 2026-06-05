@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/constants/app_constants.dart';
 import '../../../providers/yolo_face_provider.dart';
 
 /// Renders a stateful retro terminal displaying dynamic neural retraining logs.
 /// Isolates scroll controllers and frame paint routines from impacting parent containers.
-class YoloRetrainingTerminal extends StatefulWidget {
+class YoloRetrainingTerminal extends ConsumerStatefulWidget {
   const YoloRetrainingTerminal({super.key});
 
   @override
-  State<YoloRetrainingTerminal> createState() => _YoloRetrainingTerminalState();
+  ConsumerState<YoloRetrainingTerminal> createState() => _YoloRetrainingTerminalState();
 }
 
-class _YoloRetrainingTerminalState extends State<YoloRetrainingTerminal> {
+class _YoloRetrainingTerminalState extends ConsumerState<YoloRetrainingTerminal> {
   /// Self-contained ScrollController to manage logs console scrolling.
   final ScrollController _terminalScrollController = ScrollController();
 
@@ -26,12 +26,12 @@ class _YoloRetrainingTerminalState extends State<YoloRetrainingTerminal> {
   @override
   Widget build(BuildContext context) {
     // Watch training logs emitted by the active learning backpropagation provider.
-    final yoloProv = context.watch<YoloFaceProvider>();
+    final yoloState = ref.watch(yoloFaceProvider);
 
     // Autoscroll training logs terminal on update.
     // We defer the jump to a post-frame callback to ensure that the layout is completely
     // painted with the new list items before querying the max scroll extent.
-    if (yoloProv.isTraining) {
+    if (yoloState.isTraining) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_terminalScrollController.hasClients) {
           _terminalScrollController.jumpTo(_terminalScrollController.position.maxScrollExtent);
@@ -70,7 +70,7 @@ class _YoloRetrainingTerminalState extends State<YoloRetrainingTerminal> {
                 ],
               ),
               // Activity loading indicator while SGD training is active
-              if (yoloProv.isTraining)
+              if (yoloState.isTraining)
                 const SizedBox(
                   width: 10,
                   height: 10,
@@ -87,9 +87,9 @@ class _YoloRetrainingTerminalState extends State<YoloRetrainingTerminal> {
           Expanded(
             child: ListView.builder(
               controller: _terminalScrollController,
-              itemCount: yoloProv.trainingLogs.length,
+              itemCount: yoloState.trainingLogs.length,
               itemBuilder: (context, index) {
-                final log = yoloProv.trainingLogs[index];
+                final log = yoloState.trainingLogs[index];
                 
                 // Color tokens dynamically based on log status matches
                 Color textColor = AppConstants.textSecondary;

@@ -1,3 +1,8 @@
+---
+title: Coding Standards
+description: General engineering, UI/UX, security, and performance standards for code maintainability and robustness.
+---
+
 # Coding Standards
 
 These standards ensure maintainability, security, and performance across all projects.

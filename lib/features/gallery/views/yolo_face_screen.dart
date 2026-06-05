@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_constants.dart';
 import '../providers/yolo_face_provider.dart';
 import 'widgets/yolo/yolo_embeddings_map.dart';
@@ -7,12 +7,12 @@ import 'widgets/yolo/yolo_enrolled_timeline.dart';
 import 'widgets/yolo/yolo_retraining_terminal.dart';
 import 'widgets/yolo/yolo_unidentified_queue.dart';
 
-class YoloFaceScreen extends StatelessWidget {
+class YoloFaceScreen extends ConsumerWidget {
   const YoloFaceScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final yoloProv = context.watch<YoloFaceProvider>();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final yoloState = ref.watch(yoloFaceProvider);
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
@@ -22,7 +22,7 @@ class YoloFaceScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header Page Title
-            _buildPageHeader(context, yoloProv),
+            _buildPageHeader(context, yoloState),
             const SizedBox(height: AppConstants.paddingLarge),
 
             // Top Panel: Metrics & Live Retraining Terminal
@@ -31,7 +31,7 @@ class YoloFaceScreen extends StatelessWidget {
               children: [
                 Expanded(
                   flex: 3,
-                  child: _buildModelMetricsHUD(context, yoloProv),
+                  child: _buildModelMetricsHUD(context, yoloState, ref),
                 ),
                 const SizedBox(width: AppConstants.paddingMedium),
                 const Expanded(
@@ -67,7 +67,7 @@ class YoloFaceScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildPageHeader(BuildContext context, YoloFaceProvider yoloProv) {
+  Widget _buildPageHeader(BuildContext context, YoloFaceState yoloState) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -88,12 +88,12 @@ class YoloFaceScreen extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: yoloProv.isTraining
+            color: yoloState.isTraining
                 ? AppConstants.secondary.withValues(alpha: 0.15)
                 : Colors.greenAccent.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: yoloProv.isTraining ? AppConstants.secondary : Colors.greenAccent,
+              color: yoloState.isTraining ? AppConstants.secondary : Colors.greenAccent,
             ),
           ),
           child: Row(
@@ -104,16 +104,16 @@ class YoloFaceScreen extends StatelessWidget {
                 height: 8,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: yoloProv.isTraining ? AppConstants.secondary : Colors.greenAccent,
+                  color: yoloState.isTraining ? AppConstants.secondary : Colors.greenAccent,
                 ),
               ),
               const SizedBox(width: 8),
               Text(
-                yoloProv.isTraining ? 'RETRAINING ACTIVE' : 'ENGINE ONLINE',
+                yoloState.isTraining ? 'RETRAINING ACTIVE' : 'ENGINE ONLINE',
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
-                  color: yoloProv.isTraining ? AppConstants.secondary : Colors.greenAccent,
+                  color: yoloState.isTraining ? AppConstants.secondary : Colors.greenAccent,
                 ),
               ),
             ],
@@ -123,7 +123,7 @@ class YoloFaceScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildModelMetricsHUD(BuildContext context, YoloFaceProvider yoloProv) {
+  Widget _buildModelMetricsHUD(BuildContext context, YoloFaceState yoloState, WidgetRef ref) {
     return Container(
       padding: const EdgeInsets.all(AppConstants.paddingLarge),
       decoration: BoxDecoration(
@@ -150,27 +150,31 @@ class YoloFaceScreen extends StatelessWidget {
               IconButton(
                 icon: const Icon(Icons.refresh, size: 18, color: AppConstants.textMuted),
                 tooltip: 'Manually Reset Model Weights',
-                onPressed: yoloProv.isTraining ? null : () => yoloProv.retrainModel(),
+                onPressed: yoloState.isTraining
+                    ? null
+                    : () => ref.read(yoloFaceProvider.notifier).retrainModel(),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          _buildMetricProgressBar('Model Map Accuracy', yoloProv.currentAccuracy, Colors.greenAccent),
+          _buildMetricProgressBar('Model Map Accuracy', yoloState.currentAccuracy, Colors.greenAccent),
           const SizedBox(height: 14),
-          _buildMetricProgressBar('Fine-Tuning SGD Loss', yoloProv.currentLoss, AppConstants.secondary, inverse: true),
+          _buildMetricProgressBar('Fine-Tuning SGD Loss', yoloState.currentLoss, AppConstants.secondary, inverse: true),
           const SizedBox(height: 20),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildMiniMetricCard('Enrolled Identities', '${yoloProv.enrolledNames.length} Labeled'),
-              _buildMiniMetricCard('Epochs Trained', '${yoloProv.isTraining ? yoloProv.currentEpoch : 45} / 15'),
+              _buildMiniMetricCard('Enrolled Identities', '${yoloState.enrolledNames.length} Labeled'),
+              _buildMiniMetricCard('Epochs Trained', '${yoloState.isTraining ? yoloState.currentEpoch : 45} / 15'),
             ],
           ),
           const SizedBox(height: 16),
           ElevatedButton.icon(
-            onPressed: yoloProv.isTraining ? null : () => yoloProv.retrainModel(),
+            onPressed: yoloState.isTraining
+                ? null
+                : () => ref.read(yoloFaceProvider.notifier).retrainModel(),
             icon: const Icon(Icons.model_training, size: 16),
-            label: Text(yoloProv.isTraining ? 'Training Face Maps...' : 'Trigger Model Retrain'),
+            label: Text(yoloState.isTraining ? 'Training Face Maps...' : 'Trigger Model Retrain'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppConstants.primary,
               foregroundColor: Colors.white,

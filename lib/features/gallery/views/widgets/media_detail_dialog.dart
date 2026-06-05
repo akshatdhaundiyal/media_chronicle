@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:ui' as ui;
 import 'dart:async';
 import '../../../../core/constants/app_constants.dart';
@@ -105,9 +105,12 @@ class MediaDetailDialog extends StatelessWidget {
                             top: offsetY,
                             width: renderedWidth,
                             height: renderedHeight,
-                            child: Consumer<YoloFaceProvider>(
-                              builder: (context, yoloFaceProv, child) {
-                                final faces = yoloFaceProv.getFacesForMediaItem(item.id);
+                            child: Consumer(
+                              builder: (context, ref, child) {
+                                final yoloState = ref.watch(yoloFaceProvider);
+                                final faces = yoloState.detectedFaces
+                                    .where((f) => f.mediaItemId == item.id)
+                                    .toList();
 
                                 return Stack(
                                   children: faces.map((face) {

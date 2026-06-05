@@ -1,9 +1,13 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../core/utils/llm_helper.dart';
 import '../../../core/utils/postgres_sync_service.dart';
+import '../../settings/providers/settings_provider.dart';
 import '../models/media_item.dart';
 import '../models/album.dart';
+
+part 'gallery_provider.g.dart';
 
 class _VlmTask {
   final MediaItem item;
@@ -23,28 +27,37 @@ class _VlmTask {
   });
 }
 
-/// A central state management controller governing the Media archive catalog.
-///
-/// This provider uses [ChangeNotifier] to reactive-notify subscribers when:
-/// 1. Media is imported or deleted from the catalog.
-/// 2. Memory folders (Albums) are created or mutated.
-/// 3. Local Ollama VLM connections are established or disconnected.
-/// 4. Ingestion queues shift analysis states.
-class GalleryProvider extends ChangeNotifier {
-  /// Internal mutable store of media items.
-  final List<MediaItem> _items = [];
+@immutable
+class GalleryState {
+  final List<MediaItem> items;
+  final List<Album> albums;
+  final bool isLlmAvailable;
+  final List<String> pulledModels;
 
-  /// Internal mutable store of custom albums.
-  final List<Album> _albums = [];
+  const GalleryState({
+    required this.items,
+    required this.albums,
+    required this.isLlmAvailable,
+    required this.pulledModels,
+  });
 
-  /// Flag indicating whether the local vision VLM (Ollama) server is active.
-  bool _isLlmAvailable = false;
-  bool get isLlmAvailable => _isLlmAvailable;
+  GalleryState copyWith({
+    List<MediaItem>? items,
+    List<Album>? albums,
+    bool? isLlmAvailable,
+    List<String>? pulledModels,
+  }) {
+    return GalleryState(
+      items: items ?? this.items,
+      albums: albums ?? this.albums,
+      isLlmAvailable: isLlmAvailable ?? this.isLlmAvailable,
+      pulledModels: pulledModels ?? this.pulledModels,
+    );
+  }
+}
 
-  /// Holds the list of parsed, pulled model configurations retrieved from Ollama.
-  List<String> _pulledModels = [];
-  List<String> get pulledModels => List.unmodifiable(_pulledModels);
-
+@riverpod
+class Gallery extends _$Gallery {
   /// Periodic timer polling the Ollama endpoint to trace server availability states.
   Timer? _llmPoller;
   String? _lastPolledUrl;
@@ -55,33 +68,48 @@ class GalleryProvider extends ChangeNotifier {
   /// Lock guard ensuring only one sequential task is run at a time.
   bool _isProcessingVlm = false;
 
-  /// Read-only unmodifiable views of items and albums to enforce outside immutability.
-  List<MediaItem> get items => List.unmodifiable(_items);
-  List<Album> get albums => List.unmodifiable(_albums);
+  @override
+  GalleryState build() {
+    // Listen to settingsProvider changes to restart poller when url changes
+    ref.listen<SettingsState>(settingsProvider, (previous, next) {
+      if (previous?.ollamaUrl != next.ollamaUrl) {
+        startLlmPoller(next.ollamaUrl);
+      }
+    });
 
-  GalleryProvider() {
-    // Initiate automatic connection check on localhost standard port.
-    checkLlmConnection('http://localhost:11434');
+    // Start poller once on initialization
+    Future.microtask(() {
+      final currentUrl = ref.read(settingsProvider).ollamaUrl;
+      startLlmPoller(currentUrl);
+    });
+
+    ref.onDispose(() {
+      _llmPoller?.cancel();
+    });
+
+    return const GalleryState(
+      items: [],
+      albums: [],
+      isLlmAvailable: false,
+      pulledModels: [],
+    );
   }
 
   /// Queries the target endpoint url to retrieve LLM status details.
   Future<void> checkLlmConnection(String endpointUrl) async {
     final status = await LlmHelper.checkLlmAvailability(endpointUrl);
-    if (_isLlmAvailable != status) {
-      _isLlmAvailable = status;
-      notifyListeners();
+    if (state.isLlmAvailable != status) {
+      state = state.copyWith(isLlmAvailable: status);
     }
 
     if (status) {
       final models = await LlmHelper.getPulledModels(endpointUrl);
-      if (!listEquals(_pulledModels, models)) {
-        _pulledModels = models;
-        notifyListeners();
+      if (!listEquals(state.pulledModels, models)) {
+        state = state.copyWith(pulledModels: models);
       }
     } else {
-      if (_pulledModels.isNotEmpty) {
-        _pulledModels = [];
-        notifyListeners();
+      if (state.pulledModels.isNotEmpty) {
+        state = state.copyWith(pulledModels: []);
       }
     }
   }
@@ -105,13 +133,6 @@ class GalleryProvider extends ChangeNotifier {
     });
   }
 
-  @override
-  void dispose() {
-    // Prevent memory leaks by terminating active background poll timers.
-    _llmPoller?.cancel();
-    super.dispose();
-  }
-
   /// Imports a new media item into the chronological workspace archive.
   ///
   /// **Core Operations**:
@@ -125,11 +146,11 @@ class GalleryProvider extends ChangeNotifier {
     String? ollamaModel,
     bool autoTag = true,
     String? preIdentifiedFaces,
-    Function(MediaItem)? onAnalyzeComplete,
+    Function(MediaItem)? onComplete,
     Function(String)? onAnalyzeError,
   }) async {
     // 1. Deduplication check using the item's cryptographic SHA-256 hash.
-    final isDuplicate = _items.any((existing) => existing.sha256 == item.sha256);
+    final isDuplicate = state.items.any((existing) => existing.sha256 == item.sha256);
     if (isDuplicate) {
       debugPrint('Deduplication BLOCKED: SHA-256 (${item.sha256}) already exists in gallery catalog.');
       onAnalyzeError?.call('Deduplication BLOCKED: This image has already been imported.');
@@ -142,8 +163,8 @@ class GalleryProvider extends ChangeNotifier {
         : item;
 
     // Insert imported item at index 0 (chronological sorting).
-    _items.insert(0, initialItem);
-    notifyListeners();
+    final nextItems = List<MediaItem>.from(state.items)..insert(0, initialItem);
+    state = state.copyWith(items: nextItems);
 
     // 3. Queue scheduling for sequential vision VLM inferences.
     if (autoTag && ollamaUrl != null && ollamaModel != null) {
@@ -152,19 +173,18 @@ class GalleryProvider extends ChangeNotifier {
         ollamaUrl: ollamaUrl,
         ollamaModel: ollamaModel,
         preIdentifiedFaces: preIdentifiedFaces,
-        onComplete: onAnalyzeComplete,
+        onComplete: onComplete,
         onError: onAnalyzeError,
       ));
 
       _processVlmQueue();
     } else {
       // Auto-tagging is disabled: import bare media item and sync to database without VLM inferences
-      PostgresSyncService().syncMediaItem(initialItem);
+      ref.read(postgresSyncProvider.notifier).syncMediaItem(initialItem);
 
-      if (onAnalyzeComplete != null) {
-        onAnalyzeComplete(initialItem);
+      if (onComplete != null) {
+        onComplete(initialItem);
       }
-      notifyListeners();
     }
   }
 
@@ -182,12 +202,12 @@ class GalleryProvider extends ChangeNotifier {
         Map<String, String>? results;
         bool modelExists = false;
 
-        if (_isLlmAvailable) {
+        if (state.isLlmAvailable) {
           // Double-check if the selected model actually exists on the local Ollama server.
           // If the pulled list is empty, it could mean a network mismatch, so we only enforce if the list has models.
-          modelExists = _pulledModels.isEmpty || 
-                        _pulledModels.contains(task.ollamaModel) ||
-                        _pulledModels.any((m) => m.toLowerCase() == task.ollamaModel.toLowerCase() ||
+          modelExists = state.pulledModels.isEmpty || 
+                        state.pulledModels.contains(task.ollamaModel) ||
+                        state.pulledModels.any((m) => m.toLowerCase() == task.ollamaModel.toLowerCase() ||
                                                  m.toLowerCase().startsWith('${task.ollamaModel.toLowerCase()}:'));
 
           if (modelExists) {
@@ -198,7 +218,7 @@ class GalleryProvider extends ChangeNotifier {
               preIdentifiedFaces: task.preIdentifiedFaces,
             );
           } else {
-            debugPrint('Ollama VLM local warning: Model "${task.ollamaModel}" not found in pulled models list: $_pulledModels');
+            debugPrint('Ollama VLM local warning: Model "${task.ollamaModel}" not found in pulled models list: ${state.pulledModels}');
           }
         }
 
@@ -217,18 +237,19 @@ class GalleryProvider extends ChangeNotifier {
             tags: parsedTags,
           );
 
-          final index = _items.indexWhere((e) => e.id == item.id);
+          final nextItems = List<MediaItem>.from(state.items);
+          final index = nextItems.indexWhere((e) => e.id == item.id);
           if (index != -1) {
-            _items[index] = updatedItem;
+            nextItems[index] = updatedItem;
+            state = state.copyWith(items: nextItems);
           }
 
           // Trigger PostgreSQL Database synchronization with VLM inferences
-          PostgresSyncService().syncMediaItem(updatedItem);
+          ref.read(postgresSyncProvider.notifier).syncMediaItem(updatedItem);
 
           if (task.onComplete != null) {
             task.onComplete!(updatedItem);
           }
-          notifyListeners();
         } else {
           // VLM analysis failed/offline. Engage fallback simulator!
           debugPrint('Ollama VLM analysis failed, timed out, or model missing. Engaging high-fidelity smart visual fallback simulator sequentially.');
@@ -248,20 +269,21 @@ class GalleryProvider extends ChangeNotifier {
             tags: parsedTags,
           );
 
-          final index = _items.indexWhere((e) => e.id == item.id);
+          final nextItems = List<MediaItem>.from(state.items);
+          final index = nextItems.indexWhere((e) => e.id == item.id);
           if (index != -1) {
-            _items[index] = updatedItem;
+            nextItems[index] = updatedItem;
+            state = state.copyWith(items: nextItems);
           }
 
           // Trigger PostgreSQL Database synchronization with simulated inferences
-          PostgresSyncService().syncMediaItem(updatedItem);
+          ref.read(postgresSyncProvider.notifier).syncMediaItem(updatedItem);
 
           if (task.onComplete != null) {
             task.onComplete!(updatedItem);
           }
-          notifyListeners();
 
-          final isModelMissing = _isLlmAvailable && !modelExists;
+          final isModelMissing = state.isLlmAvailable && !modelExists;
           final errorMsg = isModelMissing
               ? 'Failed to perform VLM analysis: The selected vision model "${task.ollamaModel}" was not found on your local Ollama server.\n\nTo download it, run this command in your terminal:\n> ollama pull ${task.ollamaModel}\n\nSmart visual fallbacks have been automatically engaged to keep your gallery functional!'
               : 'Failed to perform VLM analysis: Local Ollama VLM server at "${task.ollamaUrl}" is offline, unreachable, or still starting up.\n\nSmart visual fallbacks have been automatically engaged to keep your gallery functional!';
@@ -269,11 +291,12 @@ class GalleryProvider extends ChangeNotifier {
           task.onError?.call(errorMsg);
         }
       } catch (e) {
-        final index = _items.indexWhere((e) => e.id == item.id);
+        final nextItems = List<MediaItem>.from(state.items);
+        final index = nextItems.indexWhere((e) => e.id == item.id);
         if (index != -1) {
-          _items[index] = _items[index].copyWith(isAnalyzing: false);
+          nextItems[index] = nextItems[index].copyWith(isAnalyzing: false);
+          state = state.copyWith(items: nextItems);
         }
-        notifyListeners();
         task.onError?.call('An unexpected error occurred during VLM analysis: $e');
       }
     }
@@ -290,11 +313,12 @@ class GalleryProvider extends ChangeNotifier {
     Function(MediaItem)? onComplete,
     Function(String)? onError,
   }) {
-    final index = _items.indexWhere((e) => e.id == item.id);
+    final nextItems = List<MediaItem>.from(state.items);
+    final index = nextItems.indexWhere((e) => e.id == item.id);
     if (index != -1) {
-      final updatedItem = _items[index].copyWith(isAnalyzing: true);
-      _items[index] = updatedItem;
-      notifyListeners();
+      final updatedItem = nextItems[index].copyWith(isAnalyzing: true);
+      nextItems[index] = updatedItem;
+      state = state.copyWith(items: nextItems);
 
       _vlmQueue.add(_VlmTask(
         item: updatedItem,
@@ -310,47 +334,51 @@ class GalleryProvider extends ChangeNotifier {
   }
 
   void deleteMediaItem(String id) {
-    _items.removeWhere((item) => item.id == id);
+    final nextItems = List<MediaItem>.from(state.items)..removeWhere((item) => item.id == id);
+    
     // Remove item from any associated albums
-    for (int i = 0; i < _albums.length; i++) {
-      if (_albums[i].itemIds.contains(id)) {
-        final list = List<String>.from(_albums[i].itemIds)..remove(id);
-        _albums[i] = _albums[i].copyWith(itemIds: list);
+    final nextAlbums = List<Album>.from(state.albums);
+    for (int i = 0; i < nextAlbums.length; i++) {
+      if (nextAlbums[i].itemIds.contains(id)) {
+        final list = List<String>.from(nextAlbums[i].itemIds)..remove(id);
+        nextAlbums[i] = nextAlbums[i].copyWith(itemIds: list);
       }
     }
-    notifyListeners();
+    state = state.copyWith(items: nextItems, albums: nextAlbums);
   }
 
   // --- Folder / Album Management ---
   void createAlbum(String name) {
     final newId = DateTime.now().millisecondsSinceEpoch.toString();
-    _albums.add(Album(id: newId, name: name, itemIds: []));
-    notifyListeners();
+    final nextAlbums = List<Album>.from(state.albums)..add(Album(id: newId, name: name, itemIds: []));
+    state = state.copyWith(albums: nextAlbums);
   }
 
   void deleteAlbum(String id) {
-    _albums.removeWhere((album) => album.id == id);
-    notifyListeners();
+    final nextAlbums = List<Album>.from(state.albums)..removeWhere((album) => album.id == id);
+    state = state.copyWith(albums: nextAlbums);
   }
 
   void addItemToAlbum(String albumId, String itemId) {
-    final idx = _albums.indexWhere((a) => a.id == albumId);
+    final nextAlbums = List<Album>.from(state.albums);
+    final idx = nextAlbums.indexWhere((a) => a.id == albumId);
     if (idx != -1) {
-      if (!_albums[idx].itemIds.contains(itemId)) {
-        final list = List<String>.from(_albums[idx].itemIds)..add(itemId);
-        _albums[idx] = _albums[idx].copyWith(itemIds: list);
-        notifyListeners();
+      if (!nextAlbums[idx].itemIds.contains(itemId)) {
+        final list = List<String>.from(nextAlbums[idx].itemIds)..add(itemId);
+        nextAlbums[idx] = nextAlbums[idx].copyWith(itemIds: list);
+        state = state.copyWith(albums: nextAlbums);
       }
     }
   }
 
   void removeItemFromAlbum(String albumId, String itemId) {
-    final idx = _albums.indexWhere((a) => a.id == albumId);
+    final nextAlbums = List<Album>.from(state.albums);
+    final idx = nextAlbums.indexWhere((a) => a.id == albumId);
     if (idx != -1) {
-      if (_albums[idx].itemIds.contains(itemId)) {
-        final list = List<String>.from(_albums[idx].itemIds)..remove(itemId);
-        _albums[idx] = _albums[idx].copyWith(itemIds: list);
-        notifyListeners();
+      if (nextAlbums[idx].itemIds.contains(itemId)) {
+        final list = List<String>.from(nextAlbums[idx].itemIds)..remove(itemId);
+        nextAlbums[idx] = nextAlbums[idx].copyWith(itemIds: list);
+        state = state.copyWith(albums: nextAlbums);
       }
     }
   }

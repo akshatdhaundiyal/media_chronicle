@@ -157,16 +157,21 @@ def run_export(args: argparse.Namespace, cfg: YoloConfig, logger) -> dict:
     # ── §2.1  Locate weights ─────────────────────────────────────────────
     weights = args.weights
     if weights is None:
-        default_best = cfg.project_root / "runs" / "train" / "weights" / "best.pt"
-        if default_best.exists():
-            weights = str(default_best)
+        # Check if the user specified a custom pretrained weights path or registry key
+        if cfg.pretrained_weights:
+            weights = cfg.pretrained_weights
+            logger.info("Using configured custom weights: %s", weights)
         else:
-            logger.error(
-                "No trained weights found at: %s\n"
-                "Either train a model first or specify --weights.",
-                default_best,
-            )
-            sys.exit(1)
+            # Fallback to local default best.pt if no custom weights are configured
+            default_best = cfg.project_root / "runs" / "train" / "weights" / "best.pt"
+            if default_best.exists():
+                weights = str(default_best)
+                logger.info("Using trained weights fallback: %s", weights)
+            else:
+                weights = cfg.weights_path
+                logger.info("No custom weights configured or fallback found. Using default pretrained: %s", weights)
+    else:
+        logger.info("Using specified weights from CLI: %s", weights)
 
     logger.info("Loading model from: %s", weights)
     model = YOLO(weights)

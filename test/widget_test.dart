@@ -2,14 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:provider/provider.dart';
-import 'package:media_chronicle/main.dart';
-import 'package:media_chronicle/state/app_state.dart';
-import 'package:media_chronicle/features/gallery/providers/gallery_provider.dart';
-import 'package:media_chronicle/features/stories/providers/stories_provider.dart';
-import 'package:media_chronicle/features/settings/providers/settings_provider.dart';
-import 'package:media_chronicle/features/gallery/providers/yolo_face_provider.dart';
-import 'package:media_chronicle/core/utils/postgres_sync_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:media_chronicle/app.dart';
 
 class MockHttpOverrides extends HttpOverrides {
   @override
@@ -88,18 +82,10 @@ void main() {
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1.0;
 
-    // Build our app under MultiProvider and trigger a frame.
+    // Build our app under ProviderScope and trigger a frame.
     await tester.pumpWidget(
-      MultiProvider(
-        providers: [
-          ChangeNotifierProvider(create: (_) => AppState()),
-          ChangeNotifierProvider(create: (_) => GalleryProvider()),
-          ChangeNotifierProvider(create: (_) => YoloFaceProvider()),
-          ChangeNotifierProvider(create: (_) => PostgresSyncService()),
-          ChangeNotifierProvider(create: (_) => StoriesProvider()),
-          ChangeNotifierProvider(create: (_) => SettingsProvider()),
-        ],
-        child: const MyApp(),
+      const ProviderScope(
+        child: App(),
       ),
     );
 

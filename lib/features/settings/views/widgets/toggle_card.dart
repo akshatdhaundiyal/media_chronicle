@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../../../core/constants/app_constants.dart';
-import '../../providers/settings_provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:media_chronicle/core/constants/app_constants.dart';
+import 'package:media_chronicle/features/settings/providers/settings_provider.dart';
 
-class ToggleCard extends StatelessWidget {
+class ToggleCard extends ConsumerWidget {
   const ToggleCard({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final provider = context.watch<SettingsProvider>();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final provider = ref.watch(settingsProvider);
 
     return Container(
       padding: const EdgeInsets.all(AppConstants.paddingLarge),
@@ -35,7 +35,7 @@ class ToggleCard extends StatelessWidget {
             value: provider.darkMode,
             activeThumbColor: AppConstants.primary,
             contentPadding: EdgeInsets.zero,
-            onChanged: (val) => provider.toggleDarkMode(val),
+            onChanged: (val) => ref.read(settingsProvider.notifier).toggleDarkMode(val),
           ),
           const Divider(),
           SwitchListTile(
@@ -44,7 +44,7 @@ class ToggleCard extends StatelessWidget {
             value: provider.enableNotifications,
             activeThumbColor: AppConstants.primary,
             contentPadding: EdgeInsets.zero,
-            onChanged: (val) => provider.toggleNotifications(val),
+            onChanged: (val) => ref.read(settingsProvider.notifier).toggleNotifications(val),
           ),
           const Divider(),
           ListTile(
@@ -56,7 +56,7 @@ class ToggleCard extends StatelessWidget {
                 provider.gridMode ? Icons.grid_view : Icons.view_list,
                 color: AppConstants.primary,
               ),
-              onPressed: () => provider.toggleLayoutMode(),
+              onPressed: () => ref.read(settingsProvider.notifier).toggleLayoutMode(),
             ),
           )
         ],

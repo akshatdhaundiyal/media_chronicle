@@ -176,6 +176,92 @@ This document maintains a high-level summary index of all major achievements, te
 
 ---
 
+### Milestone 11: Riverpod Integration & Feature-First Clean Architecture Setup (Completed: June 4, 2026)
+*   **Description**: Integrated the Riverpod state management framework (including the modern `riverpod_annotation` and code generator syntax) into the project. Standardized the project on a Feature-First, Layered Clean Architecture folder structure, split the MaterialApp setup out of `main.dart` into `app.dart`, and updated the project's dependency configurations.
+*   **Design Document**: [09_riverpod_clean_architecture_setup.md](file:///d:/lab/projects/media_chronicle/docs/design_docs/09_riverpod_clean_architecture_setup.md)
+*   **Achievements**:
+    *   **Riverpod Installation**: Integrated `flutter_riverpod` and `riverpod_annotation` under `dependencies` and configured `riverpod_generator`, `build_runner`, and `riverpod_lint` in `dev_dependencies` inside `pubspec.yaml`.
+    *   **App Entry Decoupling**: Created a new `lib/app.dart` file defining the core `App` widget (using `ConsumerWidget`), separating the Material app setup, styling themes, and routing rules from initialization logic.
+    *   **Provider Scope Integration**: Simplified `lib/main.dart` to bootstrap the application cleanly using Riverpod's `ProviderScope`, while wrapping the legacy `MultiProvider` configuration to guarantee backward compatibility with existing features during the migration phase.
+    *   **Absolute Package Imports**: Cleaned up relative imports in modified theme and test files, enforcing absolute package imports (`package:media_chronicle/...`).
+    *   **Scaffold Reference Guide**: Created `lib/features/README.md` to document the layered structure boundaries (`data/`, `domain/`, `presentation/`) and architectural rules for future feature development.
+*   **Audits**:
+    *   `flutter analyze` — Clean (No issues found!)
+    *   `flutter test` — Clean (All provider and widget test suites passed!)
+
+---
+
+### Milestone 12: AppState State Management Migration to Riverpod Notifier (Completed: June 4, 2026)
+*   **Description**: Migrated the core `AppState` class from the legacy `ChangeNotifier` to a modern Riverpod `Notifier` using `@riverpod` code generation. Refactored all dependent presentation layer views (Dashboard, Gallery, Stories, and sub-widgets) to watch/read the new provider reactively, keeping the rest of the legacy providers coexisting gracefully.
+*   **Design Document**: [09_riverpod_clean_architecture_setup.md](file:///d:/lab/projects/media_chronicle/docs/design_docs/09_riverpod_clean_architecture_setup.md)
+*   **Achievements**:
+    *   **Immutable State Container**: Defined the immutable `AppStateData` container with copy-constructors and integrated it with `AppState` extending generated `_$AppState`.
+    *   **Presentation Refactoring**: Refactored `DashboardShell` and its child panels (`Sidebar`, `DashboardHeader`, `BottomNavBar`), `StoriesScreen`, `GalleryScreen`, and gallery components (`GalleryCategoryFilters`, `GalleryTagCloud`, `GalleryQuickPanel`) to extend Riverpod's `ConsumerWidget` or `ConsumerStatefulWidget`.
+    *   **Legacy Scoping Cleanliness**: Removed legacy AppState bindings from `MultiProvider` in [main.dart](file:///d:/lab/projects/media_chronicle/lib/main.dart) while keeping remaining legacy provider states functional.
+    *   **Unit Tests Rewrite**: Upgraded AppState unit tests in [providers_unit_test.dart](file:///d:/lab/projects/media_chronicle/test/providers_unit_test.dart) to test the new provider in isolation using Riverpod `ProviderContainer` scopes.
+*   **Audits**:
+    *   `flutter analyze` — Clean (No issues found!)
+    *   `flutter test` — Clean (All tests passed!)
+
+---
+
+### Milestone 13: Settings State Management Migration to Riverpod Notifier (Completed: June 4, 2026)
+*   **Description**: Migrated the `SettingsProvider` state from a legacy `ChangeNotifier` pattern to a modern Riverpod `Notifier` managing an immutable `SettingsState`. Refactored all configurations panels, shell screens, upload dialogs, and test suites.
+*   **Design Document**: [09_riverpod_clean_architecture_setup.md](file:///d:/lab/projects/media_chronicle/docs/design_docs/09_riverpod_clean_architecture_setup.md)
+*   **Achievements**:
+    *   **Immutable Settings State**: Formed the immutable `SettingsState` schema class mapping preference options and formatting storage values.
+    *   **Control Center Refactoring**: Converted all Settings layout card widgets (Profile, LLM, YOLO, Postgres, Storage, and Toggles) to extend `ConsumerWidget` or `ConsumerStatefulWidget`.
+    *   **Orchestration View Adaptation**: Updated `App`, `DashboardShell`, `GalleryScreen`, `GalleryQuickPanel`, and `MediaUploadDialog` to watch or read Riverpod's `settingsProvider`.
+    *   **Unit & Widget Test Coverage**: Refactored the unit test groups inside `providers_unit_test.dart` to query settings state in a `ProviderContainer` and removed legacy setup hooks from `widget_test.dart`.
+*   **Audits**:
+    *   `flutter analyze` — Clean (No issues found!)
+    *   `flutter test` — Clean (All tests passed!)
+
+---
+
+### Milestone 14: Stories State Management Migration to Riverpod Notifier (Completed: June 4, 2026)
+*   **Description**: Migrated the `StoriesProvider` state from a legacy `ChangeNotifier` pattern to a modern Riverpod `Notifier` managing a type-safe `List<StoryItem>`. Refactored stories dashboard views, card items, creation dialogs, and test suites.
+*   **Design Document**: [09_riverpod_clean_architecture_setup.md](file:///d:/lab/projects/media_chronicle/docs/design_docs/09_riverpod_clean_architecture_setup.md)
+*   **Achievements**:
+    *   **Riverpod Stories Notifier**: Created `Stories` notifier returning a state list containing all story chronicles.
+    *   **Stories Screen & Cards Refactoring**: Converted `StoriesScreen` and `StoryCard` to Consumer widgets watching `storiesProvider` and calling notifier deletion actions.
+    *   **Draft Dialog Refactoring**: Converted `CreateStoryDialog` to `ConsumerStatefulWidget` to publish new stories using the Riverpod notifier.
+    *   **Legacy Cleanup & Test Alignment**: Removed legacy provider configurations in `main.dart` and `widget_test.dart` and refactored tests inside `providers_unit_test.dart` to use `ProviderContainer`.
+*   **Audits**:
+    *   `flutter analyze` — Clean (No issues found!)
+    *   `flutter test` — Clean (All tests passed!)
+
+---
+
+### Milestone 15: YoloFace State Management Migration to Riverpod Notifier (Completed: June 4, 2026)
+*   **Description**: Migrated the `YoloFaceProvider` state from a legacy `ChangeNotifier` pattern to a modern Riverpod `Notifier` managing an immutable `YoloFaceState` container. Refactored the interactive cluster map, training logs terminal, identity age timeline, queue cards, and unit test suites.
+*   **Design Document**: [09_riverpod_clean_architecture_setup.md](file:///d:/lab/projects/media_chronicle/docs/design_docs/09_riverpod_clean_architecture_setup.md)
+*   **Achievements**:
+    *   **Immutable Face State**: Defined the immutable `YoloFaceState` model structure with clean copy-constructors and integrated it with `YoloFace` extending generated `_$YoloFace`.
+    *   **Interactive Panel Refactoring**: Migrated `YoloFaceScreen`, `YoloConfigCard`, `YoloEmbeddingsMap`, `YoloRetrainingTerminal`, `YoloEnrolledTimeline`, `YoloUnidentifiedQueue`, and `FaceLabelingDialog` to watch/read Riverpod.
+    *   **O(1) Grid Optimization**: Converted `GalleryCard`'s selective rebuild indicator badge using type-safe record selector structures.
+    *   **Direct overlay and Dialog integration**: Refactored `MediaDetailDialog` and `MediaUploadDialog` to invoke detectors via Riverpod's `yoloFaceProvider`.
+    *   **Unit Tests Rewrite**: Upgraded YOLO Face unit tests in [providers_unit_test.dart](file:///d:/lab/projects/media_chronicle/test/providers_unit_test.dart) using a `ProviderContainer` to verify offline machine learning predictions.
+*   **Audits**:
+    *   `flutter analyze` — Clean (No issues found!)
+    *   `flutter test` — Clean (All tests passed!)
+
+---
+
+### Milestone 16: Complete Migration of Gallery & PostgreSQL Sync to Riverpod Notifiers (Completed: June 5, 2026)
+*   **Description**: Completed the migration of the final two legacy ChangeNotifier providers (`GalleryProvider` and `PostgresSyncService`) to modern Riverpod Notifiers, completely eliminating the legacy `provider` package from the codebase.
+*   **Design Document**: [09_riverpod_clean_architecture_setup.md](file:///d:/lab/projects/media_chronicle/docs/design_docs/09_riverpod_clean_architecture_setup.md)
+*   **Achievements**:
+    *   **Riverpod Notifiers Migration**: Refactored `GalleryProvider` to `Gallery` and `PostgresSyncService` to `PostgresSync` utilizing the `@riverpod` code generation syntax.
+    *   **Elimination of Legacy Code**: Completely removed `MultiProvider` from `main.dart` and `widget_test.dart`, standardizing the app fully on Riverpod.
+    *   **Presentation Refactoring**: Ported `GalleryScreen`, `GalleryQuickPanel`, `GalleryTagCloud`, `MediaUploadDialog`, and Settings panels (`LlmCard`, `PostgresSyncCard`) to watch or read the new Riverpod providers.
+    *   **Testing Integrity**: Upgraded providers unit tests in `providers_unit_test.dart` and integration tests in `widget_test.dart`. Solved auto-dispose lifecycle resets in asynchronous unit test environments by creating active subscriptions.
+*   **Audits**:
+    *   `flutter analyze` — Clean (No issues found!)
+    *   `flutter test` — Clean (All tests passed!)
+
+---
+
 ## 📊 Milestone Timeline
 
 ```mermaid
@@ -201,6 +287,14 @@ gantt
     section Modularisation & Python
     M9 - Project-Wide Modularisation         :done, m9, 2026-06-01, 1d
     M10 - Python YOLO Pipeline               :done, m10, 2026-06-01, 1d
+
+    section Clean Architecture
+    M11 - Riverpod & Clean Arch Setup       :done, m11, 2026-06-04, 1d
+    M12 - AppState Riverpod Migration       :done, m12, 2026-06-04, 1d
+    M13 - Settings Riverpod Migration       :done, m13, 2026-06-04, 1d
+    M14 - Stories Riverpod Migration        :done, m14, 2026-06-04, 1d
+    M15 - YoloFace Riverpod Migration       :done, m15, 2026-06-04, 1d
+    M16 - Gallery & Postgres Sync Riverpod  :done, m16, 2026-06-05, 1d
 ```
 
 ---
@@ -210,15 +304,19 @@ gantt
 ```
 media_chronicle/
 ├── lib/
-│   ├── main.dart                          # App coordinator & MultiProvider shell
+│   ├── main.dart                          # Minimal app bootstrapper wrapped in ProviderScope
+│   ├── app.dart                           # Decoupled MaterialApp coordinator & routing configuration
 │   ├── core/
 │   │   ├── constants/app_constants.dart   # Theme tokens, spacing, mock data
 │   │   ├── theme/app_theme.dart           # Dark theme & font declarations
+│   │   ├── widgets/
+│   │   │   └── .gitkeep                   # Placeholder for global reusable widgets
 │   │   └── utils/
 │   │       ├── llm_helper.dart            # Ollama VLM HTTP client
 │   │       ├── media_helper.dart          # Native file picking & camera facade
 │   │       └── postgres_sync_service.dart # Direct PostgreSQL socket sync
 │   ├── features/
+│   │   ├── README.md                      # Feature-First Clean Architecture reference guide
 │   │   ├── gallery/
 │   │   │   ├── models/
 │   │   │   │   ├── media_item.dart        # Immutable media element + SHA-256
@@ -258,22 +356,11 @@ media_chronicle/
 │   │               ├── stories_empty_state.dart
 │   │               ├── create_story_dialog.dart
 │   │               └── story_detail_dialog.dart
-│   └── state/app_state.dart               # Global tab & search coordination
+│   └── state/
+│       ├── app_state.dart                 # AppState Notifier managing navigation & search state
+│       └── app_state.g.dart               # Generated Riverpod file
 ├── scripts/                               # Python YOLO pipeline
-│   ├── yolo_train.py                      # Training entrypoint
-│   ├── yolo_detect.py                     # Inference runner
-│   ├── yolo_evaluate.py                   # Validation metrics
-│   ├── yolo_export.py                     # Model format export
-│   ├── yolo_data_prep.py                  # Dataset preparation CLI
-│   ├── yolo_config.yaml                   # Default hyperparameters
-│   ├── README.md                          # Usage guide
-│   └── utils/
-│       ├── __init__.py
-│       ├── config.py                      # YoloConfig dataclass
-│       ├── logging_setup.py               # Rich + rotating file logger
-│       └── data_transforms.py             # Augmentation + format converters
 ├── experiments/
-│   └── yolo_pipeline.ipynb                # Interactive experimentation notebook
 ├── docs/
 │   ├── design_docs/                       # Milestone design documents
 │   └── knowledge_base/                    # Technical lessons learned

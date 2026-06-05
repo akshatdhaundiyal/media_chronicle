@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../../../core/constants/app_constants.dart';
-import '../../../../core/utils/media_helper.dart';
-import '../../../../state/app_state.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:media_chronicle/core/constants/app_constants.dart';
+import 'package:media_chronicle/core/utils/media_helper.dart';
+import 'package:media_chronicle/state/app_state.dart';
 
-class GalleryCategoryFilters extends StatelessWidget {
+class GalleryCategoryFilters extends ConsumerWidget {
   const GalleryCategoryFilters({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final appState = context.watch<AppState>();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final appState = ref.watch(appStateProvider);
     final categories = ['All', 'Nature', 'Urban', 'People', 'Events', 'Objects'];
 
     return SizedBox(
@@ -25,7 +25,7 @@ class GalleryCategoryFilters extends StatelessWidget {
           return Padding(
             padding: const EdgeInsets.only(right: 10),
             child: InkWell(
-              onTap: () => appState.updateGroupFilter(cat),
+              onTap: () => ref.read(appStateProvider.notifier).updateGroupFilter(cat),
               borderRadius: BorderRadius.circular(20),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

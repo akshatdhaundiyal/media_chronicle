@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../../../core/constants/app_constants.dart';
-import '../../providers/settings_provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:media_chronicle/core/constants/app_constants.dart';
+import 'package:media_chronicle/features/settings/providers/settings_provider.dart';
 
-class ProfileCard extends StatelessWidget {
+class ProfileCard extends ConsumerWidget {
   const ProfileCard({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final provider = context.watch<SettingsProvider>();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final provider = ref.watch(settingsProvider);
 
     return Container(
       padding: const EdgeInsets.all(AppConstants.paddingLarge),
@@ -79,7 +79,7 @@ class ProfileCard extends StatelessWidget {
                     ),
                     ElevatedButton(
                       onPressed: () {
-                        provider.updateUsername(controller.text);
+                        ref.read(settingsProvider.notifier).updateUsername(controller.text);
                         controller.dispose();
                         Navigator.pop(dialogCtx);
                       },

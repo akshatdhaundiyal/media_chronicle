@@ -92,6 +92,7 @@ class YoloConfig:
     output_dir: Optional[Path] = None
 
     # ── Model architecture ────────────────────────────────────────────────
+    model_prefix: str = "yolov8"                   # default model architecture prefix (e.g. "yolov8", "yolov12")
     model_variant: str = "n"                       # nano by default (fast iteration)
     pretrained_weights: Optional[str] = None       # None → download COCO pretrained
 
@@ -176,6 +177,7 @@ class YoloConfig:
             YOLO_LR            → lr           (float)
             YOLO_DEVICE        → device       (str)
             YOLO_IMAGE_SIZE    → image_size   (int)
+            YOLO_MODEL_PREFIX  → model_prefix (str)
             YOLO_MODEL_VARIANT → model_variant(str)
             YOLO_VERBOSE       → verbose      (bool)
             YOLO_POSTGRES_DSN  → postgres_dsn (str)
@@ -188,6 +190,7 @@ class YoloConfig:
             "YOLO_LR":            ("lr",            float),
             "YOLO_DEVICE":        ("device",        str),
             "YOLO_IMAGE_SIZE":    ("image_size",    int),
+            "YOLO_MODEL_PREFIX":  ("model_prefix",  str),
             "YOLO_MODEL_VARIANT": ("model_variant", str),
             "YOLO_VERBOSE":       ("verbose",       lambda v: v.lower() in ("1", "true", "yes")),
             "YOLO_POSTGRES_DSN":  ("postgres_dsn",  str),
@@ -204,15 +207,15 @@ class YoloConfig:
 
     @property
     def model_name(self) -> str:
-        """Canonical YOLOv8 model identifier (e.g. ``yolov8n``)."""
-        return f"yolov8{self.model_variant}"
+        """Canonical YOLO model identifier (e.g. ``yolov8n``, ``yolov12n``)."""
+        return f"{self.model_prefix}{self.model_variant}"
 
     @property
     def weights_path(self) -> str:
         """Resolve the starting checkpoint: custom file or COCO pretrained."""
-        if self.pretrained_weights and Path(self.pretrained_weights).exists():
+        if self.pretrained_weights:
             return self.pretrained_weights
-        return f"yolov8{self.model_variant}.pt"
+        return f"{self.model_prefix}{self.model_variant}.pt"
 
     def summary(self) -> str:
         """Return a human-readable multi-line summary of the configuration."""

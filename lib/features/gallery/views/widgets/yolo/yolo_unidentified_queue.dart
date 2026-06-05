@@ -1,6 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/constants/app_constants.dart';
 import '../../../models/detected_face.dart';
 import '../../../models/media_item.dart';
@@ -10,15 +10,15 @@ import '../face_labeling_dialog.dart';
 
 /// Renders the scrollable horizontal queue of unrecognized face bounds pending manual labeling.
 /// Enables on-demand identity ingestion and immediate model weight backpropagation.
-class YoloUnidentifiedQueue extends StatelessWidget {
+class YoloUnidentifiedQueue extends ConsumerWidget {
   const YoloUnidentifiedQueue({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     // Watch for YOLO face detections updates and gallery files.
-    final yoloProv = context.watch<YoloFaceProvider>();
-    final galleryProv = context.watch<GalleryProvider>();
-    final unIdentified = yoloProv.unidentifiedFaces;
+    final yoloState = ref.watch(yoloFaceProvider);
+    final galleryState = ref.watch(galleryProvider);
+    final unIdentified = yoloState.unidentifiedFaces;
 
     return Container(
       padding: const EdgeInsets.all(AppConstants.paddingLarge),
@@ -91,7 +91,7 @@ class YoloUnidentifiedQueue extends StatelessWidget {
                     itemCount: unIdentified.length,
                     itemBuilder: (context, index) {
                       final face = unIdentified[index];
-                      final mediaItem = galleryProv.items.firstWhere((i) => i.id == face.mediaItemId);
+                      final mediaItem = galleryState.items.firstWhere((i) => i.id == face.mediaItemId);
 
                       return Padding(
                         padding: const EdgeInsets.only(right: 16.0),
@@ -127,7 +127,7 @@ class YoloUnidentifiedQueue extends StatelessWidget {
                               
                               // Tap handler to trigger the overlay naming prompt
                               ElevatedButton(
-                                onPressed: () => _handleFaceLabeling(context, yoloProv, face),
+                                onPressed: () => _handleFaceLabeling(context, ref, yoloState, face),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppConstants.accent,
                                   minimumSize: const Size.fromHeight(32),
@@ -179,11 +179,12 @@ class YoloUnidentifiedQueue extends StatelessWidget {
   /// unmounted context execution errors.
   void _handleFaceLabeling(
     BuildContext context,
-    YoloFaceProvider yoloFaceProv,
+    WidgetRef ref,
+    YoloFaceState yoloState,
     DetectedFace face,
   ) {
-    final galleryProv = context.read<GalleryProvider>();
-    final mediaItem = galleryProv.items.firstWhere((i) => i.id == face.mediaItemId);
+    final galleryState = ref.read(galleryProvider);
+    final mediaItem = galleryState.items.firstWhere((i) => i.id == face.mediaItemId);
     final parentSha256 = mediaItem.sha256;
 
     FaceLabelingDialog.show(context, face, parentSha256);

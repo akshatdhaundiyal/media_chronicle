@@ -1,20 +1,20 @@
-import 'package:flutter/foundation.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../models/story_item.dart';
 
-class StoriesProvider extends ChangeNotifier {
-  final List<StoryItem> _stories = [];
+part 'stories_provider.g.dart';
 
-  List<StoryItem> get stories => List.unmodifiable(_stories);
-
-  StoriesProvider();
+@riverpod
+class Stories extends _$Stories {
+  @override
+  List<StoryItem> build() {
+    return const [];
+  }
 
   void addStory(StoryItem story) {
-    _stories.insert(0, story);
-    notifyListeners();
+    state = [story, ...state];
   }
 
   void deleteStory(String id) {
-    _stories.removeWhere((story) => story.id == id);
-    notifyListeners();
+    state = state.where((story) => story.id != id).toList();
   }
 }

@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/utils/media_helper.dart';
 import '../../models/media_item.dart';
-import '../../models/detected_face.dart';
 import '../../providers/yolo_face_provider.dart';
 
 class GalleryCard extends StatelessWidget {
@@ -238,26 +236,22 @@ class GalleryCard extends StatelessWidget {
                     _buildLlmCapsuleBadge(Icons.wb_sunny_outlined, 'Time: ${item.dateClue}', AppConstants.secondary),
                   ],
                   
-                  // YOLO Face status badges (CRITICAL: Optimized via Selector!)
-                  //
-                  // Rationale: Using context.watch<YoloFaceProvider>() would cause EVERY card on screen to rebuild
-                  // whenever any face is labeled/analyzed. By using Selector and filtering for faces matching
-                  // the current item.id, only the specific card whose face data actually changes is rebuilt.
-                  // This brings general update performance from O(N) to O(1) complexity.
                   if (!item.isAnalyzing) ...[
-                    Selector<YoloFaceProvider, List<DetectedFace>>(
-                      selector: (context, provider) => provider.getFacesForMediaItem(item.id),
-                      shouldRebuild: (oldList, newList) => !listEquals(oldList, newList),
-                      builder: (context, itemFaces, child) {
-                        if (itemFaces.isNotEmpty) {
-                          final hasUnidentified = itemFaces.any((f) => !f.isIdentified);
+                    Consumer(
+                      builder: (context, ref, child) {
+                        final (faceCount, hasUnidentified) = ref.watch(yoloFaceProvider.select((state) {
+                          final faces = state.detectedFaces.where((f) => f.mediaItemId == item.id);
+                          return (faces.length, faces.any((f) => !f.isIdentified));
+                        }));
+
+                        if (faceCount > 0) {
                           return Padding(
                             padding: const EdgeInsets.only(top: 4.0),
                             child: _buildLlmCapsuleBadge(
                               hasUnidentified ? Icons.warning_amber_rounded : Icons.psychology_outlined,
                               hasUnidentified
-                                  ? 'YOLO: ${itemFaces.length} Faces (Label Required)'
-                                  : 'YOLO: ${itemFaces.length} Faces Recognized',
+                                  ? 'YOLO: $faceCount Faces (Label Required)'
+                                  : 'YOLO: $faceCount Faces Recognized',
                               hasUnidentified ? AppConstants.secondary : Colors.greenAccent,
                             ),
                           );

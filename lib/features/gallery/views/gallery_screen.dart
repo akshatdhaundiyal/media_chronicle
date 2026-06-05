@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../../core/constants/app_constants.dart';
-import '../../../state/app_state.dart';
-import '../../settings/providers/settings_provider.dart';
-import '../providers/gallery_provider.dart';
-import '../providers/yolo_face_provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:media_chronicle/core/constants/app_constants.dart';
+import 'package:media_chronicle/state/app_state.dart';
+import 'package:media_chronicle/features/settings/providers/settings_provider.dart';
+import 'package:media_chronicle/features/gallery/providers/gallery_provider.dart';
+import 'package:media_chronicle/features/gallery/providers/yolo_face_provider.dart';
 import 'widgets/gallery_toolbar.dart';
 import 'widgets/gallery_quick_panel.dart';
 import 'widgets/gallery_category_filters.dart';
@@ -20,14 +20,14 @@ import 'widgets/media_upload_dialog.dart';
 /// 2. Search integration (matching name, place, face tags, or dates).
 /// 3. Multi-selection batch operations (move, copy, delete, VLM reprocessing).
 /// 4. Layout-responsive grid rendering adapting dynamically between mobile and desktop configurations.
-class GalleryScreen extends StatefulWidget {
+class GalleryScreen extends ConsumerStatefulWidget {
   const GalleryScreen({super.key});
 
   @override
-  State<GalleryScreen> createState() => _GalleryScreenState();
+  ConsumerState<GalleryScreen> createState() => _GalleryScreenState();
 }
 
-class _GalleryScreenState extends State<GalleryScreen> {
+class _GalleryScreenState extends ConsumerState<GalleryScreen> {
   /// Flag tracking whether the user is in batch selection mode.
   bool _isSelectionMode = false;
 
@@ -37,16 +37,15 @@ class _GalleryScreenState extends State<GalleryScreen> {
   @override
   Widget build(BuildContext context) {
     // Watch reactive providers to trigger a UI refresh upon data changes.
-    final galleryProv = context.watch<GalleryProvider>();
-    final appState = context.watch<AppState>();
-    final settings = context.watch<SettingsProvider>();
+    final galleryState = ref.watch(galleryProvider);
+    final appState = ref.watch(appStateProvider);
     
     // Normalize the global search query to case-insensitive.
     final query = appState.searchQuery.toLowerCase();
 
     // Filter items dynamically based on global search, category, folder/album, AND active tag selections.
     // This consolidated filter path runs in O(n) time on every rebuild, guaranteeing clean visual states.
-    final filteredItems = galleryProv.items.where((item) {
+    final filteredItems = galleryState.items.where((item) {
       // 1. Check search queries matching title, place tags, or face names.
       final matchesSearch = item.title.toLowerCase().contains(query) ||
           (item.place?.toLowerCase().contains(query) ?? false) ||
@@ -57,7 +56,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
       
       // 3. Check folder scope if a specific folder (album) is active in the sidebar panel.
       final matchesAlbum = appState.activeAlbumId == null || 
-          galleryProv.albums.firstWhere((a) => a.id == appState.activeAlbumId).itemIds.contains(item.id);
+          galleryState.albums.firstWhere((a) => a.id == appState.activeAlbumId).itemIds.contains(item.id);
           
       // 4. Check secondary tag cloud selections.
       final matchesTag = appState.activeTagFilter == null ||
@@ -97,7 +96,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
             },
             onActionSelected: (action) {
               // Delegate selection command to the processor handler.
-              _handleSelectionAction(context, action, galleryProv, appState, settings);
+              _handleSelectionAction(context, action);
             },
             onUploadPressed: () => MediaUploadDialog.show(context),
             onSelectionModeStart: () {
@@ -174,10 +173,10 @@ class _GalleryScreenState extends State<GalleryScreen> {
                                 _selectedItemIds.add(item.id);
                               });
                             },
-                            onAddToAlbum: () => _showAddToAlbumDialog(context, galleryProv, item.id),
+                            onAddToAlbum: () => _showAddToAlbumDialog(context, item.id),
                             onDelete: () {
                               // Perform standard item removal.
-                              context.read<GalleryProvider>().deleteMediaItem(item.id);
+                              ref.read(galleryProvider.notifier).deleteMediaItem(item.id);
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text('Media item catalog removed'),
@@ -199,11 +198,13 @@ class _GalleryScreenState extends State<GalleryScreen> {
   void _handleSelectionAction(
     BuildContext context,
     String action,
-    GalleryProvider galleryProv,
-    AppState appState,
-    SettingsProvider settings,
   ) {
     if (_selectedItemIds.isEmpty) return;
+
+    final galleryState = ref.read(galleryProvider);
+    final galleryNotifier = ref.read(galleryProvider.notifier);
+    final settings = ref.read(settingsProvider);
+    final appState = ref.read(appStateProvider);
 
     if (action == 'delete') {
       showDialog(
@@ -220,7 +221,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
             ElevatedButton(
               onPressed: () {
                 for (final id in _selectedItemIds) {
-                  galleryProv.deleteMediaItem(id);
+                  galleryNotifier.deleteMediaItem(id);
                 }
                 setState(() {
                   _isSelectionMode = false;
@@ -243,14 +244,14 @@ class _GalleryScreenState extends State<GalleryScreen> {
       });
       int reRunCount = 0;
       for (final id in _selectedItemIds) {
-        final item = galleryProv.items.firstWhere((i) => i.id == id);
+        final item = galleryState.items.firstWhere((i) => i.id == id);
         
-        final faces = context.read<YoloFaceProvider>().getFacesForMediaItem(item.id);
+        final faces = ref.read(yoloFaceProvider.notifier).getFacesForMediaItem(item.id);
         final faceNames = faces
             .map((f) => f.name ?? (f.isIdentified ? 'John' : 'an unidentified person'))
             .join(', ');
 
-        galleryProv.reRunVlm(
+        galleryNotifier.reRunVlm(
           item,
           ollamaUrl: settings.ollamaUrl,
           ollamaModel: settings.ollamaModel,
@@ -269,7 +270,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
         SnackBar(content: Text('Queued $reRunCount items sequentially for local VLM re-analysis!')),
       );
     } else if (action == 'move' || action == 'copy') {
-      if (galleryProv.albums.isEmpty) {
+      if (galleryState.albums.isEmpty) {
         showDialog(
           context: context,
           builder: (dialogCtx) => AlertDialog(
@@ -296,19 +297,19 @@ class _GalleryScreenState extends State<GalleryScreen> {
             width: 300,
             height: 200,
             child: ListView.builder(
-              itemCount: galleryProv.albums.length,
+              itemCount: galleryState.albums.length,
               itemBuilder: (c, idx) {
-                final album = galleryProv.albums[idx];
+                final album = galleryState.albums[idx];
                 return ListTile(
                   leading: const Icon(Icons.folder_shared, color: AppConstants.secondary),
                   title: Text(album.name, style: const TextStyle(color: Colors.white)),
                   subtitle: Text('${album.itemIds.length} items', style: const TextStyle(color: AppConstants.textMuted, fontSize: 11)),
                   onTap: () {
                     for (final itemId in _selectedItemIds) {
-                      galleryProv.addItemToAlbum(album.id, itemId);
+                      galleryNotifier.addItemToAlbum(album.id, itemId);
 
                       if (action == 'move' && appState.activeAlbumId != null && appState.activeAlbumId != album.id) {
-                        galleryProv.removeItemFromAlbum(appState.activeAlbumId!, itemId);
+                        galleryNotifier.removeItemFromAlbum(appState.activeAlbumId!, itemId);
                       }
                     }
                     setState(() {
@@ -335,8 +336,11 @@ class _GalleryScreenState extends State<GalleryScreen> {
     }
   }
 
-  void _showAddToAlbumDialog(BuildContext context, GalleryProvider galleryProv, String itemId) {
-    if (galleryProv.albums.isEmpty) {
+  void _showAddToAlbumDialog(BuildContext context, String itemId) {
+    final galleryState = ref.read(galleryProvider);
+    final galleryNotifier = ref.read(galleryProvider.notifier);
+
+    if (galleryState.albums.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No albums created yet! Create an album first using "Create Folder".')),
       );
@@ -352,9 +356,9 @@ class _GalleryScreenState extends State<GalleryScreen> {
           width: 300,
           child: ListView.builder(
             shrinkWrap: true,
-            itemCount: galleryProv.albums.length,
+            itemCount: galleryState.albums.length,
             itemBuilder: (context, index) {
-              final album = galleryProv.albums[index];
+              final album = galleryState.albums[index];
               final containsItem = album.itemIds.contains(itemId);
 
               return ListTile(
@@ -368,12 +372,12 @@ class _GalleryScreenState extends State<GalleryScreen> {
                     : const Icon(Icons.add, size: 18, color: AppConstants.textMuted),
                 onTap: () {
                   if (containsItem) {
-                    galleryProv.removeItemFromAlbum(album.id, itemId);
+                    galleryNotifier.removeItemFromAlbum(album.id, itemId);
                     ScaffoldMessenger.of(dialogCtx).showSnackBar(
                       SnackBar(content: Text('Removed item from album "${album.name}".')),
                     );
                   } else {
-                    galleryProv.addItemToAlbum(album.id, itemId);
+                    galleryNotifier.addItemToAlbum(album.id, itemId);
                     ScaffoldMessenger.of(dialogCtx).showSnackBar(
                       SnackBar(content: Text('Added item to album "${album.name}".')),
                     );
@@ -394,7 +398,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
     );
   }
 
-  Widget _buildEmptyState(BuildContext context, AppState appState) {
+  Widget _buildEmptyState(BuildContext context, AppStateData appState) {
     return Center(
       child: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
@@ -427,7 +431,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
               ),
               const SizedBox(height: 16),
               TextButton.icon(
-                onPressed: () => appState.clearAllFilters(),
+                onPressed: () => ref.read(appStateProvider.notifier).clearAllFilters(),
                 icon: const Icon(Icons.refresh, size: 16),
                 label: const Text('Reset All Filters', style: TextStyle(fontSize: 12)),
                 style: TextButton.styleFrom(

@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../gallery/models/media_item.dart';
 import '../../../gallery/providers/gallery_provider.dart';
 import '../../models/story_item.dart';
 import '../../providers/stories_provider.dart';
 
-class CreateStoryDialog extends StatefulWidget {
+class CreateStoryDialog extends ConsumerStatefulWidget {
   const CreateStoryDialog({super.key});
 
   static void show(BuildContext context) {
@@ -17,10 +17,10 @@ class CreateStoryDialog extends StatefulWidget {
   }
 
   @override
-  State<CreateStoryDialog> createState() => _CreateStoryDialogState();
+  ConsumerState<CreateStoryDialog> createState() => _CreateStoryDialogState();
 }
 
-class _CreateStoryDialogState extends State<CreateStoryDialog> {
+class _CreateStoryDialogState extends ConsumerState<CreateStoryDialog> {
   final _titleController = TextEditingController();
   final _descController = TextEditingController();
   final _selectedMedia = <MediaItem>[];
@@ -34,8 +34,8 @@ class _CreateStoryDialogState extends State<CreateStoryDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final galleryProv = context.watch<GalleryProvider>();
-    final galleryItems = galleryProv.items;
+    final galleryState = ref.watch(galleryProvider);
+    final galleryItems = galleryState.items;
 
     return AlertDialog(
       backgroundColor: AppConstants.dialogBg,
@@ -172,7 +172,7 @@ class _CreateStoryDialogState extends State<CreateStoryDialog> {
               mediaItems: List<MediaItem>.from(_selectedMedia),
             );
             
-            context.read<StoriesProvider>().addStory(newStory);
+            ref.read(storiesProvider.notifier).addStory(newStory);
             Navigator.pop(context);
             
             ScaffoldMessenger.of(context).showSnackBar(

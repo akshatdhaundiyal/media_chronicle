@@ -1,25 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
-import '../../../../core/constants/app_constants.dart';
-import '../../providers/settings_provider.dart';
-import '../../../gallery/providers/gallery_provider.dart';
+import 'package:media_chronicle/core/constants/app_constants.dart';
+import 'package:media_chronicle/features/settings/providers/settings_provider.dart';
+import 'package:media_chronicle/features/gallery/providers/gallery_provider.dart';
 
-class LlmCard extends StatefulWidget {
+class LlmCard extends ConsumerStatefulWidget {
   const LlmCard({super.key});
 
   @override
-  State<LlmCard> createState() => _LlmCardState();
+  ConsumerState<LlmCard> createState() => _LlmCardState();
 }
 
-class _LlmCardState extends State<LlmCard> {
+class _LlmCardState extends ConsumerState<LlmCard> {
   late final TextEditingController _urlController;
   late final TextEditingController _modelController;
 
   @override
   void initState() {
     super.initState();
-    final provider = context.read<SettingsProvider>();
+    final provider = ref.read(settingsProvider);
     _urlController = TextEditingController(text: provider.ollamaUrl);
     _modelController = TextEditingController(text: provider.ollamaModel);
   }
@@ -33,8 +33,8 @@ class _LlmCardState extends State<LlmCard> {
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<SettingsProvider>();
-    final galleryProv = context.watch<GalleryProvider>();
+    final provider = ref.watch(settingsProvider);
+    final galleryState = ref.watch(galleryProvider);
 
     // Safely sync controller texts if changed externally
     if (_urlController.text != provider.ollamaUrl) {
@@ -74,12 +74,12 @@ class _LlmCardState extends State<LlmCard> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: galleryProv.isLlmAvailable
+                  color: galleryState.isLlmAvailable
                       ? Colors.greenAccent.withValues(alpha: 0.15)
                       : Colors.redAccent.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: galleryProv.isLlmAvailable ? Colors.greenAccent : Colors.redAccent,
+                    color: galleryState.isLlmAvailable ? Colors.greenAccent : Colors.redAccent,
                   ),
                 ),
                 child: Row(
@@ -90,16 +90,16 @@ class _LlmCardState extends State<LlmCard> {
                       height: 6,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: galleryProv.isLlmAvailable ? Colors.greenAccent : Colors.redAccent,
+                        color: galleryState.isLlmAvailable ? Colors.greenAccent : Colors.redAccent,
                       ),
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      galleryProv.isLlmAvailable ? 'VLM ONLINE' : 'VLM OFFLINE',
+                      galleryState.isLlmAvailable ? 'VLM ONLINE' : 'VLM OFFLINE',
                       style: TextStyle(
                         fontSize: 9,
                         fontWeight: FontWeight.bold,
-                        color: galleryProv.isLlmAvailable ? Colors.greenAccent : Colors.redAccent,
+                        color: galleryState.isLlmAvailable ? Colors.greenAccent : Colors.redAccent,
                       ),
                     ),
                   ],
@@ -114,7 +114,7 @@ class _LlmCardState extends State<LlmCard> {
               Expanded(
                 child: TextField(
                   controller: _urlController,
-                  onChanged: (val) => provider.updateOllamaUrl(val),
+                  onChanged: (val) => ref.read(settingsProvider.notifier).updateOllamaUrl(val),
                   decoration: const InputDecoration(
                     labelText: 'Local Ollama URL Endpoint',
                     hintText: 'e.g. http://localhost:11434',
@@ -123,11 +123,11 @@ class _LlmCardState extends State<LlmCard> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: galleryProv.pulledModels.isNotEmpty
+                child: galleryState.pulledModels.isNotEmpty
                     ? DropdownButtonFormField<String>(
-                        initialValue: galleryProv.pulledModels.contains(provider.ollamaModel)
+                        initialValue: galleryState.pulledModels.contains(provider.ollamaModel)
                             ? provider.ollamaModel
-                            : galleryProv.pulledModels.first,
+                            : galleryState.pulledModels.first,
                         decoration: const InputDecoration(
                           labelText: 'Installed VLM Models (Auto-Detected)',
                         ),
@@ -135,10 +135,10 @@ class _LlmCardState extends State<LlmCard> {
                         style: const TextStyle(color: Colors.white, fontSize: 13),
                         onChanged: (newModel) {
                           if (newModel != null) {
-                            provider.updateOllamaModel(newModel);
+                            ref.read(settingsProvider.notifier).updateOllamaModel(newModel);
                           }
                         },
-                        items: galleryProv.pulledModels.map((m) {
+                        items: galleryState.pulledModels.map((m) {
                           return DropdownMenuItem<String>(
                             value: m,
                             child: Text(m, style: const TextStyle(fontSize: 13)),
@@ -147,7 +147,7 @@ class _LlmCardState extends State<LlmCard> {
                       )
                     : TextField(
                         controller: _modelController,
-                        onChanged: (val) => provider.updateOllamaModel(val),
+                        onChanged: (val) => ref.read(settingsProvider.notifier).updateOllamaModel(val),
                         decoration: const InputDecoration(
                           labelText: 'Vision VLM Model Name',
                           hintText: 'e.g. gemma4, paligemma, llava',
@@ -164,7 +164,7 @@ class _LlmCardState extends State<LlmCard> {
             value: provider.autoTagEnabled,
             activeThumbColor: AppConstants.primary,
             contentPadding: EdgeInsets.zero,
-            onChanged: (val) => provider.toggleAutoTag(val),
+            onChanged: (val) => ref.read(settingsProvider.notifier).toggleAutoTag(val),
           ),
           const Divider(),
 

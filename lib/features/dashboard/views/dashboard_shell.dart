@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../../core/constants/app_constants.dart';
-import '../../../state/app_state.dart';
-import '../../gallery/providers/gallery_provider.dart';
-import '../../gallery/views/gallery_screen.dart';
-import '../../stories/views/stories_screen.dart';
-import '../../settings/providers/settings_provider.dart';
-import '../../settings/views/settings_screen.dart';
-import '../../explorer/views/explorer_screen.dart';
-import '../../gallery/providers/yolo_face_provider.dart';
-import '../../gallery/views/yolo_face_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:media_chronicle/core/constants/app_constants.dart';
+import 'package:media_chronicle/state/app_state.dart';
+import 'package:media_chronicle/features/gallery/providers/gallery_provider.dart';
+import 'package:media_chronicle/features/gallery/views/gallery_screen.dart';
+import 'package:media_chronicle/features/stories/views/stories_screen.dart';
+import 'package:media_chronicle/features/settings/providers/settings_provider.dart';
+import 'package:media_chronicle/features/settings/views/settings_screen.dart';
+import 'package:media_chronicle/features/explorer/views/explorer_screen.dart';
+import 'package:media_chronicle/features/gallery/providers/yolo_face_provider.dart';
+import 'package:media_chronicle/features/gallery/views/yolo_face_screen.dart';
 
 /// The master responsive layout shell orchestrating sidebar navigation and routing.
 ///
@@ -20,93 +20,38 @@ import '../../gallery/views/yolo_face_screen.dart';
 ///    to cleanly access [BuildContext] and read providers without interrupting the initial paint pass.
 /// 3. **Dynamic Model Auto-Selection**: Checks the pulled models from Ollama and maps active settings to
 ///    a matching variant automatically if the baseline model tag is missing (preventing VLM offline exceptions).
-class DashboardShell extends StatefulWidget {
+class DashboardShell extends ConsumerWidget {
   const DashboardShell({super.key});
 
   @override
-  State<DashboardShell> createState() => _DashboardShellState();
-}
-
-class _DashboardShellState extends State<DashboardShell> {
-  GalleryProvider? _galleryProv;
-
-  @override
-  void initState() {
-    super.initState();
-    
-    // Core Initialization: Executes safely AFTER the first layout paint pass.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      
-      // Access provider references safely using context.read.
-      _galleryProv = context.read<GalleryProvider>();
-      final settings = context.read<SettingsProvider>();
-      
-      // Spawns the background Ollama status polling timers.
-      _galleryProv?.startLlmPoller(settings.ollamaUrl);
-
-      // Register a listener so that as soon as the background poller returns
-      // the list of pulled models, we dynamically select a valid available model!
-      _galleryProv?.addListener(_autoSelectModelListener);
-    });
-  }
-
-  @override
-  void dispose() {
-    // Unregister the listener safely using the stored provider reference
-    _galleryProv?.removeListener(_autoSelectModelListener);
-    super.dispose();
-  }
-
-  /// Reactive listener that checks VLM availability and dynamically maps selected
-  /// models to direct suffix matches or installed vision/first available fallbacks.
-  void _autoSelectModelListener() {
-    if (!mounted) return;
-
-    final galleryProv = context.read<GalleryProvider>();
-    final settings = context.read<SettingsProvider>();
-
-    if (galleryProv.isLlmAvailable && galleryProv.pulledModels.isNotEmpty) {
-      final currentModel = settings.ollamaModel;
-      if (!galleryProv.pulledModels.contains(currentModel)) {
-        // 1. Search for direct suffix matches (e.g. "gemma4:latest" or case variations)
-        final matchingVariant = galleryProv.pulledModels.firstWhere(
-          (model) => model.toLowerCase().startsWith('${currentModel.toLowerCase()}:') ||
-                     model.toLowerCase() == currentModel.toLowerCase(),
-          orElse: () => '',
-        );
-
-        if (matchingVariant.isNotEmpty) {
-          settings.updateOllamaModel(matchingVariant);
-          debugPrint('Auto-Selected VLM model variant: $matchingVariant (Target model $currentModel resolved successfully)');
-        } else {
-          // 2. Fall back to a known vision/multimodal model if present in the pulled list
-          final visionModel = galleryProv.pulledModels.firstWhere(
-            (model) => model.toLowerCase().contains('gemma') ||
-                       model.toLowerCase().contains('llava') ||
-                       model.toLowerCase().contains('pali') ||
-                       model.toLowerCase().contains('vision'),
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Spawns the background Ollama status polling and auto-selects a model variant declaratively
+    ref.listen<GalleryState>(galleryProvider, (previous, next) {
+      if (next.isLlmAvailable && next.pulledModels.isNotEmpty) {
+        final settings = ref.read(settingsProvider);
+        final currentModel = settings.ollamaModel;
+        if (!next.pulledModels.contains(currentModel)) {
+          // 1. Search for direct suffix matches (e.g. "gemma4:latest" or case variations)
+          final matchingVariant = next.pulledModels.firstWhere(
+            (model) => model.toLowerCase().startsWith('${currentModel.toLowerCase()}:') ||
+                       model.toLowerCase() == currentModel.toLowerCase(),
             orElse: () => '',
           );
 
-          if (visionModel.isNotEmpty) {
-            settings.updateOllamaModel(visionModel);
-            debugPrint('Auto-Selected installed vision model: $visionModel (Target model $currentModel was not found)');
+          if (matchingVariant.isNotEmpty) {
+            ref.read(settingsProvider.notifier).updateOllamaModel(matchingVariant);
+            debugPrint('Auto-Selected installed vision model: $matchingVariant (Target model $currentModel was not found)');
           } else {
             // 3. Fall back to the first available model in the list
-            final fallbackModel = galleryProv.pulledModels.first;
-            settings.updateOllamaModel(fallbackModel);
+            final fallbackModel = next.pulledModels.first;
+            ref.read(settingsProvider.notifier).updateOllamaModel(fallbackModel);
             debugPrint('Auto-Selected first available model: $fallbackModel (Target model $currentModel was not found)');
           }
         }
       }
-    }
-  }
+    });
 
-
-  @override
-  Widget build(BuildContext context) {
-    final appState = context.watch<AppState>();
+    final appState = ref.watch(appStateProvider);
 
     // Dynamic screen routing including Files Explorer
     Widget activeScreen;
@@ -211,13 +156,13 @@ class _DashboardShellState extends State<DashboardShell> {
 }
 
 /// Sidebar component rendering logo, user profile, navigations and quotas.
-class Sidebar extends StatelessWidget {
+class Sidebar extends ConsumerWidget {
   const Sidebar({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final appState = context.watch<AppState>();
-    final settings = context.watch<SettingsProvider>();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final appState = ref.watch(appStateProvider);
+    final settings = ref.watch(settingsProvider);
 
     return Container(
       width: 280,
@@ -270,35 +215,35 @@ class Sidebar extends StatelessWidget {
             title: 'Memory Stories',
             tab: AppTab.stories,
             activeTab: appState.currentTab,
-            onTap: () => appState.changeTab(AppTab.stories),
+            onTap: () => ref.read(appStateProvider.notifier).changeTab(AppTab.stories),
           ),
           SidebarNavItem(
             icon: Icons.image_outlined,
             title: 'Media Gallery',
             tab: AppTab.gallery,
             activeTab: appState.currentTab,
-            onTap: () => appState.changeTab(AppTab.gallery),
+            onTap: () => ref.read(appStateProvider.notifier).changeTab(AppTab.gallery),
           ),
           SidebarNavItem(
             icon: Icons.folder_open_outlined,
             title: 'Workspace Files',
             tab: AppTab.explorer,
             activeTab: appState.currentTab,
-            onTap: () => appState.changeTab(AppTab.explorer),
+            onTap: () => ref.read(appStateProvider.notifier).changeTab(AppTab.explorer),
           ),
           SidebarNavItem(
             icon: Icons.settings_suggest_outlined,
             title: 'Control Center',
             tab: AppTab.settings,
             activeTab: appState.currentTab,
-            onTap: () => appState.changeTab(AppTab.settings),
+            onTap: () => ref.read(appStateProvider.notifier).changeTab(AppTab.settings),
           ),
           SidebarNavItem(
             icon: Icons.psychology_outlined,
             title: 'YOLO Face Hub',
             tab: AppTab.yolo,
             activeTab: appState.currentTab,
-            onTap: () => appState.changeTab(AppTab.yolo),
+            onTap: () => ref.read(appStateProvider.notifier).changeTab(AppTab.yolo),
           ),
 
           const Spacer(),
@@ -461,7 +406,7 @@ class SidebarNavItem extends StatelessWidget {
 }
 
 /// Top workspace search header component.
-class DashboardHeader extends StatelessWidget {
+class DashboardHeader extends ConsumerWidget {
   final bool showBurgerButton;
 
   const DashboardHeader({
@@ -470,9 +415,7 @@ class DashboardHeader extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final appState = context.watch<AppState>();
-
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       height: 70,
       padding: const EdgeInsets.symmetric(horizontal: AppConstants.paddingLarge),
@@ -520,7 +463,7 @@ class DashboardHeader extends StatelessWidget {
               border: Border.all(color: AppConstants.cardStroke),
             ),
             child: TextField(
-              onChanged: (val) => appState.updateSearchQuery(val),
+              onChanged: (val) => ref.read(appStateProvider.notifier).updateSearchQuery(val),
               style: const TextStyle(fontSize: 13, color: AppConstants.textPrimary),
               decoration: const InputDecoration(
                 hintText: 'Search stories, gallery items...',
@@ -540,13 +483,13 @@ class DashboardHeader extends StatelessWidget {
 }
 
 /// Modular VLM and YOLO health indicators.
-class ModelStatusIndicators extends StatelessWidget {
+class ModelStatusIndicators extends ConsumerWidget {
   const ModelStatusIndicators({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final galleryProv = context.watch<GalleryProvider>();
-    final yoloProv = context.watch<YoloFaceProvider>();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final galleryState = ref.watch(galleryProvider);
+    final yoloState = ref.watch(yoloFaceProvider);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -560,11 +503,11 @@ class ModelStatusIndicators extends StatelessWidget {
         children: [
           StatusDot(
             label: 'VLM',
-            isOnline: galleryProv.isLlmAvailable,
+            isOnline: galleryState.isLlmAvailable,
             icon: Icons.psychology_outlined,
             onlineColor: Colors.greenAccent,
             offlineColor: Colors.redAccent,
-            tooltip: galleryProv.isLlmAvailable 
+            tooltip: galleryState.isLlmAvailable 
                 ? 'Local Vision LLM (gemma4) is ONLINE' 
                 : 'Local Vision LLM (Ollama) is OFFLINE',
           ),
@@ -578,11 +521,11 @@ class ModelStatusIndicators extends StatelessWidget {
           
           StatusDot(
             label: 'YOLO',
-            isOnline: yoloProv.isYoloAvailable,
+            isOnline: yoloState.isYoloAvailable,
             icon: Icons.face_unlock_outlined,
             onlineColor: Colors.greenAccent,
             offlineColor: Colors.redAccent,
-            tooltip: yoloProv.isYoloAvailable
+            tooltip: yoloState.isYoloAvailable
                 ? 'YOLO Face Detector is ONLINE'
                 : 'YOLO Face Detector is OFFLINE',
           ),
@@ -648,12 +591,12 @@ class StatusDot extends StatelessWidget {
 }
 
 /// Mobile Bottom navigation bar.
-class BottomNavBar extends StatelessWidget {
+class BottomNavBar extends ConsumerWidget {
   const BottomNavBar({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final appState = context.watch<AppState>();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final appState = ref.watch(appStateProvider);
 
     return Container(
       decoration: const BoxDecoration(
@@ -669,7 +612,7 @@ class BottomNavBar extends StatelessWidget {
         showUnselectedLabels: false,
         type: BottomNavigationBarType.fixed,
         onTap: (index) {
-          appState.changeTab(AppTab.values[index]);
+          ref.read(appStateProvider.notifier).changeTab(AppTab.values[index]);
         },
         items: const [
           BottomNavigationBarItem(

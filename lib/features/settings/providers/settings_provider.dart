@@ -1,170 +1,177 @@
 import 'package:flutter/foundation.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-/// Central state provider governing application preferences and LLM/YOLO service URLs.
-///
-/// This state controller manages:
-/// 1. Profile metadata (Username, profile image source).
-/// 2. General UX switches (Dark mode toggle, notification permissions).
-/// 3. In-Memory storage tracking (Simulating growth up to 15.0 GB limits).
-/// 4. Local Ollama VLM connections (Server URL, active vision model name).
-class SettingsProvider extends ChangeNotifier {
-  /// Username displayed globally on the responsive dashboard sidebar and settings panels.
-  String _username = 'Alex Chronicle';
+part 'settings_provider.g.dart';
 
-  /// Standard placeholder image source representing the active profile avatar.
-  final String _profileImage = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=150&auto=format&fit=crop';
-  
-  /// Switches Scaffold visual background configurations.
-  bool _darkMode = true;
+@immutable
+class SettingsState {
+  final String username;
+  final String profileImage;
+  final bool darkMode;
+  final bool gridMode;
+  final bool enableNotifications;
+  final double storageUsedGB;
+  final double storageTotalGB;
+  final String ollamaUrl;
+  final String ollamaModel;
+  final bool autoTagEnabled;
+  final bool yoloIndependent;
+  final String postgresHost;
+  final int postgresPort;
+  final String postgresDatabase;
+  final String postgresUser;
+  final String postgresPassword;
+  final bool postgresSsl;
 
-  /// View configuration tracking (Grid view list vs chronological timelines).
-  bool _gridMode = true;
+  const SettingsState({
+    required this.username,
+    required this.profileImage,
+    required this.darkMode,
+    required this.gridMode,
+    required this.enableNotifications,
+    required this.storageUsedGB,
+    required this.storageTotalGB,
+    required this.ollamaUrl,
+    required this.ollamaModel,
+    required this.autoTagEnabled,
+    required this.yoloIndependent,
+    required this.postgresHost,
+    required this.postgresPort,
+    required this.postgresDatabase,
+    required this.postgresUser,
+    required this.postgresPassword,
+    required this.postgresSsl,
+  });
 
-  /// Enables or disables display notifications and status alerts.
-  bool _enableNotifications = true;
+  String get storageLimit => '${storageUsedGB.toStringAsFixed(1)} GB / ${storageTotalGB.toStringAsFixed(0)} GB';
 
-  /// Represents current memory allocation used in Gigabytes.
-  double _storageUsedGB = 2.4;
-
-  /// System-allocated max size limit for this client (15.0 GB free-tier limit).
-  final double _storageTotalGB = 15.0;
-
-  // Local Vision LLM / Ollama VLM Configurations
-  /// Target host URL for the local Ollama vision LLM server.
-  String _ollamaUrl = 'http://localhost:11434';
-
-  /// Active vision VLM model parsed during image ingestions (empty initially to auto-detect).
-  String _ollamaModel = '';
-
-  /// Flag indicating whether automated VLM analysis executes upon image import.
-  bool _autoTagEnabled = true;
-
-  /// Flag governing independent YOLO executions (skipping subsequent VLM loops).
-  bool _yoloIndependent = false;
-
-  // PostgreSQL Connection Parameters
-  String _postgresHost = 'localhost';
-  int _postgresPort = 5432;
-  String _postgresDatabase = 'chronicle';
-  String _postgresUser = 'postgres';
-  String _postgresPassword = 'password';
-  bool _postgresSsl = false;
-
-  // Reactive getters exposing state properties:
-  String get username => _username;
-  String get profileImage => _profileImage;
-  bool get darkMode => _darkMode;
-  bool get gridMode => _gridMode;
-  bool get enableNotifications => _enableNotifications;
-  double get storageUsedGB => _storageUsedGB;
-  double get storageTotalGB => _storageTotalGB;
-
-  /// Returns a clean formatted indicator string tracking active storage limits.
-  String get storageLimit => '${_storageUsedGB.toStringAsFixed(1)} GB / ${_storageTotalGB.toStringAsFixed(0)} GB';
-
-  // Local LLM / VLM Getters
-  String get ollamaUrl => _ollamaUrl;
-  String get ollamaModel => _ollamaModel;
-  bool get autoTagEnabled => _autoTagEnabled;
-  bool get yoloIndependent => _yoloIndependent;
-
-  // PostgreSQL Getters
-  String get postgresHost => _postgresHost;
-  int get postgresPort => _postgresPort;
-  String get postgresDatabase => _postgresDatabase;
-  String get postgresUser => _postgresUser;
-  String get postgresPassword => _postgresPassword;
-  bool get postgresSsl => _postgresSsl;
-
-  /// Updates global profile display name.
-  void updateUsername(String newName) {
-    _username = newName;
-    notifyListeners();
-  }
-
-  /// Toggles twilight vs custom scaffolding colors.
-  void toggleDarkMode(bool val) {
-    _darkMode = val;
-    notifyListeners();
-  }
-
-  /// Toggles between grid layouts and standard flows.
-  void toggleLayoutMode() {
-    _gridMode = !_gridMode;
-    notifyListeners();
-  }
-
-  /// Activates or silences desktop system alerts.
-  void toggleNotifications(bool val) {
-    _enableNotifications = val;
-    notifyListeners();
-  }
-
-  /// Simulates memory sync consumption increases when clicking "Sync Now".
-  ///
-  /// Increments internal doubles and prevents values from exceeding 15.0 GB limits.
-  void simulateStorageIncrease(double addedMb) {
-    _storageUsedGB += addedMb / 1024.0;
-    if (_storageUsedGB > _storageTotalGB) {
-      _storageUsedGB = _storageTotalGB;
-    }
-    notifyListeners();
-  }
-
-  // Local LLM / VLM Setters
-  /// Modifies local vision host server endpoint URL.
-  void updateOllamaUrl(String newUrl) {
-    _ollamaUrl = newUrl;
-    notifyListeners();
-  }
-
-  /// Modifies active VLM inference model.
-  void updateOllamaModel(String newModel) {
-    _ollamaModel = newModel;
-    notifyListeners();
-  }
-
-  /// Modifies automated vision tagging status flags.
-  void toggleAutoTag(bool val) {
-    _autoTagEnabled = val;
-    notifyListeners();
-  }
-
-  /// Toggles standalone YOLO execution modes.
-  void toggleYoloIndependent(bool val) {
-    _yoloIndependent = val;
-    notifyListeners();
-  }
-
-  // PostgreSQL Setters
-  void updatePostgresHost(String host) {
-    _postgresHost = host;
-    notifyListeners();
-  }
-
-  void updatePostgresPort(int port) {
-    _postgresPort = port;
-    notifyListeners();
-  }
-
-  void updatePostgresDatabase(String db) {
-    _postgresDatabase = db;
-    notifyListeners();
-  }
-
-  void updatePostgresUser(String user) {
-    _postgresUser = user;
-    notifyListeners();
-  }
-
-  void updatePostgresPassword(String password) {
-    _postgresPassword = password;
-    notifyListeners();
-  }
-
-  void togglePostgresSsl(bool val) {
-    _postgresSsl = val;
-    notifyListeners();
+  SettingsState copyWith({
+    String? username,
+    String? profileImage,
+    bool? darkMode,
+    bool? gridMode,
+    bool? enableNotifications,
+    double? storageUsedGB,
+    double? storageTotalGB,
+    String? ollamaUrl,
+    String? ollamaModel,
+    bool? autoTagEnabled,
+    bool? yoloIndependent,
+    String? postgresHost,
+    int? postgresPort,
+    String? postgresDatabase,
+    String? postgresUser,
+    String? postgresPassword,
+    bool? postgresSsl,
+  }) {
+    return SettingsState(
+      username: username ?? this.username,
+      profileImage: profileImage ?? this.profileImage,
+      darkMode: darkMode ?? this.darkMode,
+      gridMode: gridMode ?? this.gridMode,
+      enableNotifications: enableNotifications ?? this.enableNotifications,
+      storageUsedGB: storageUsedGB ?? this.storageUsedGB,
+      storageTotalGB: storageTotalGB ?? this.storageTotalGB,
+      ollamaUrl: ollamaUrl ?? this.ollamaUrl,
+      ollamaModel: ollamaModel ?? this.ollamaModel,
+      autoTagEnabled: autoTagEnabled ?? this.autoTagEnabled,
+      yoloIndependent: yoloIndependent ?? this.yoloIndependent,
+      postgresHost: postgresHost ?? this.postgresHost,
+      postgresPort: postgresPort ?? this.postgresPort,
+      postgresDatabase: postgresDatabase ?? this.postgresDatabase,
+      postgresUser: postgresUser ?? this.postgresUser,
+      postgresPassword: postgresPassword ?? this.postgresPassword,
+      postgresSsl: postgresSsl ?? this.postgresSsl,
+    );
   }
 }
 
+@riverpod
+class Settings extends _$Settings {
+  @override
+  SettingsState build() {
+    return const SettingsState(
+      username: 'Alex Chronicle',
+      profileImage: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=150&auto=format&fit=crop',
+      darkMode: true,
+      gridMode: true,
+      enableNotifications: true,
+      storageUsedGB: 2.4,
+      storageTotalGB: 15.0,
+      ollamaUrl: 'http://localhost:11434',
+      ollamaModel: '',
+      autoTagEnabled: true,
+      yoloIndependent: false,
+      postgresHost: 'localhost',
+      postgresPort: 5432,
+      postgresDatabase: 'chronicle',
+      postgresUser: 'postgres',
+      postgresPassword: 'password',
+      postgresSsl: false,
+    );
+  }
+
+  void updateUsername(String newName) {
+    state = state.copyWith(username: newName);
+  }
+
+  void toggleDarkMode(bool val) {
+    state = state.copyWith(darkMode: val);
+  }
+
+  void toggleLayoutMode() {
+    state = state.copyWith(gridMode: !state.gridMode);
+  }
+
+  void toggleNotifications(bool val) {
+    state = state.copyWith(enableNotifications: val);
+  }
+
+  void simulateStorageIncrease(double addedMb) {
+    double nextGB = state.storageUsedGB + addedMb / 1024.0;
+    if (nextGB > state.storageTotalGB) {
+      nextGB = state.storageTotalGB;
+    }
+    state = state.copyWith(storageUsedGB: nextGB);
+  }
+
+  void updateOllamaUrl(String newUrl) {
+    state = state.copyWith(ollamaUrl: newUrl);
+  }
+
+  void updateOllamaModel(String newModel) {
+    state = state.copyWith(ollamaModel: newModel);
+  }
+
+  void toggleAutoTag(bool val) {
+    state = state.copyWith(autoTagEnabled: val);
+  }
+
+  void toggleYoloIndependent(bool val) {
+    state = state.copyWith(yoloIndependent: val);
+  }
+
+  void updatePostgresHost(String host) {
+    state = state.copyWith(postgresHost: host);
+  }
+
+  void updatePostgresPort(int port) {
+    state = state.copyWith(postgresPort: port);
+  }
+
+  void updatePostgresDatabase(String db) {
+    state = state.copyWith(postgresDatabase: db);
+  }
+
+  void updatePostgresUser(String user) {
+    state = state.copyWith(postgresUser: user);
+  }
+
+  void updatePostgresPassword(String password) {
+    state = state.copyWith(postgresPassword: password);
+  }
+
+  void togglePostgresSsl(bool val) {
+    state = state.copyWith(postgresSsl: val);
+  }
+}

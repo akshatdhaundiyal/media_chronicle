@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/utils/postgres_sync_service.dart';
 import '../../providers/settings_provider.dart';
@@ -8,14 +8,14 @@ import '../../providers/settings_provider.dart';
 /// Renders the PostgreSQL database sync dashboard.
 /// Encapsulates connection credential editing, migration DDL copies,
 /// and retro SQL execution scroller consoles.
-class PostgresSyncCard extends StatefulWidget {
+class PostgresSyncCard extends ConsumerStatefulWidget {
   const PostgresSyncCard({super.key});
 
   @override
-  State<PostgresSyncCard> createState() => _PostgresSyncCardState();
+  ConsumerState<PostgresSyncCard> createState() => _PostgresSyncCardState();
 }
 
-class _PostgresSyncCardState extends State<PostgresSyncCard> {
+class _PostgresSyncCardState extends ConsumerState<PostgresSyncCard> {
   // Stateful controllers to prevent focus jumps and cursor resets on state updates.
   late final ScrollController _terminalController;
   late final TextEditingController _hostController;
@@ -32,7 +32,7 @@ class _PostgresSyncCardState extends State<PostgresSyncCard> {
   void initState() {
     super.initState();
     _terminalController = ScrollController();
-    final settings = context.read<SettingsProvider>();
+    final settings = ref.read(settingsProvider);
     _hostController = TextEditingController(text: settings.postgresHost);
     _portController = TextEditingController(text: settings.postgresPort.toString());
     _dbController = TextEditingController(text: settings.postgresDatabase);
@@ -55,8 +55,9 @@ class _PostgresSyncCardState extends State<PostgresSyncCard> {
   @override
   Widget build(BuildContext context) {
     // Watch database connection statuses and configurations providers.
-    final pgSync = context.watch<PostgresSyncService>();
-    final settings = context.watch<SettingsProvider>();
+    final pgSyncState = ref.watch(postgresSyncProvider);
+    final pgSyncNotifier = ref.read(postgresSyncProvider.notifier);
+    final settings = ref.watch(settingsProvider);
 
     // Autoscroll db terminal to bottom dynamically after widget frame lays out.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -114,12 +115,12 @@ class _PostgresSyncCardState extends State<PostgresSyncCard> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: pgSync.isConnected
+                  color: pgSyncState.isConnected
                       ? Colors.greenAccent.withValues(alpha: 0.15)
                       : Colors.redAccent.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: pgSync.isConnected ? Colors.greenAccent : Colors.redAccent,
+                    color: pgSyncState.isConnected ? Colors.greenAccent : Colors.redAccent,
                   ),
                 ),
                 child: Row(
@@ -130,16 +131,16 @@ class _PostgresSyncCardState extends State<PostgresSyncCard> {
                       height: 6,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: pgSync.isConnected ? Colors.greenAccent : Colors.redAccent,
+                        color: pgSyncState.isConnected ? Colors.greenAccent : Colors.redAccent,
                       ),
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      pgSync.isConnected ? 'SYNC ACTIVE' : 'SYNC PAUSED',
+                      pgSyncState.isConnected ? 'SYNC ACTIVE' : 'SYNC PAUSED',
                       style: TextStyle(
                         fontSize: 9,
                         fontWeight: FontWeight.bold,
-                        color: pgSync.isConnected ? Colors.greenAccent : Colors.redAccent,
+                        color: pgSyncState.isConnected ? Colors.greenAccent : Colors.redAccent,
                       ),
                     ),
                   ],
@@ -164,13 +165,13 @@ class _PostgresSyncCardState extends State<PostgresSyncCard> {
                     '${settings.postgresHost}:${settings.postgresPort}/${settings.postgresDatabase}', 
                     style: const TextStyle(fontSize: 11, color: AppConstants.textMuted),
                   ),
-                  value: pgSync.isConnected,
+                  value: pgSyncState.isConnected,
                   activeThumbColor: AppConstants.accent,
                   contentPadding: EdgeInsets.zero,
                   onChanged: (val) {
                     if (val) {
                       // Attempt dynamic native database connection asynchronously
-                      pgSync.toggleConnection(
+                      pgSyncNotifier.toggleConnection(
                         true,
                         host: settings.postgresHost,
                         port: settings.postgresPort,
@@ -179,12 +180,12 @@ class _PostgresSyncCardState extends State<PostgresSyncCard> {
                         pass: settings.postgresPassword,
                         ssl: settings.postgresSsl,
                       ).then((_) {
-                        if (pgSync.isConnected) {
-                          pgSync.processSyncQueue();
+                        if (pgSyncState.isConnected) {
+                          pgSyncNotifier.processSyncQueue();
                         }
                       });
                     } else {
-                      pgSync.toggleConnection(false);
+                      pgSyncNotifier.toggleConnection(false);
                     }
                   },
                 ),
@@ -192,7 +193,7 @@ class _PostgresSyncCardState extends State<PostgresSyncCard> {
               ElevatedButton.icon(
                 onPressed: () {
                   // Bind DDL migration queries directly to system clipboard
-                  Clipboard.setData(ClipboardData(text: pgSync.sqlSchemaMigration));
+                  Clipboard.setData(ClipboardData(text: pgSyncNotifier.sqlSchemaMigration));
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('PostgreSQL Schema creation DDL copied to clipboard!'),
@@ -320,7 +321,7 @@ class _PostgresSyncCardState extends State<PostgresSyncCard> {
                           value: settings.postgresSsl,
                           activeThumbColor: AppConstants.accent,
                           contentPadding: EdgeInsets.zero,
-                          onChanged: (val) => settings.togglePostgresSsl(val),
+                          onChanged: (val) => ref.read(settingsProvider.notifier).togglePostgresSsl(val),
                         ),
                       ),
                     ],
@@ -339,14 +340,14 @@ class _PostgresSyncCardState extends State<PostgresSyncCard> {
                           final pass = _passController.text;
 
                           // Cache configuration variables permanently
-                          settings.updatePostgresHost(host);
-                          settings.updatePostgresPort(port);
-                          settings.updatePostgresDatabase(db);
-                          settings.updatePostgresUser(user);
-                          settings.updatePostgresPassword(pass);
-
+                          final settingsNotifier = ref.read(settingsProvider.notifier);
+                          settingsNotifier.updatePostgresHost(host);
+                          settingsNotifier.updatePostgresPort(port);
+                          settingsNotifier.updatePostgresDatabase(db);
+                          settingsNotifier.updatePostgresUser(user);
+                          settingsNotifier.updatePostgresPassword(pass);
                           // Trigger socket initialization
-                          await pgSync.toggleConnection(
+                          await pgSyncNotifier.toggleConnection(
                             true,
                             host: host,
                             port: port,
@@ -355,10 +356,10 @@ class _PostgresSyncCardState extends State<PostgresSyncCard> {
                             pass: pass,
                             ssl: settings.postgresSsl,
                           );
-
+ 
                           // Instantly execute queued elements if connection successfully established
-                          if (pgSync.isConnected) {
-                            pgSync.processSyncQueue();
+                          if (pgSyncState.isConnected) {
+                            pgSyncNotifier.processSyncQueue();
                           }
                         },
                         icon: const Icon(Icons.sync_alt, size: 14),
@@ -383,8 +384,8 @@ class _PostgresSyncCardState extends State<PostgresSyncCard> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildSyncStat('Database Transactions', '${pgSync.syncedRecords} rows synced'),
-              _buildSyncStat('Offline Queue Buffer', '${pgSync.syncQueue.length} statements'),
+              _buildSyncStat('Database Transactions', '${pgSyncState.syncedRecords} rows synced'),
+              _buildSyncStat('Offline Queue Buffer', '${pgSyncState.syncQueue.length} statements'),
             ],
           ),
           const SizedBox(height: 16),
@@ -423,7 +424,7 @@ class _PostgresSyncCardState extends State<PostgresSyncCard> {
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                       tooltip: 'Clear sync log',
-                      onPressed: () => pgSync.clearLogs(),
+                      onPressed: () => pgSyncNotifier.clearLogs(),
                     ),
                   ],
                 ),
@@ -431,9 +432,9 @@ class _PostgresSyncCardState extends State<PostgresSyncCard> {
                 Expanded(
                   child: ListView.builder(
                     controller: _terminalController,
-                    itemCount: pgSync.syncLogs.length,
+                    itemCount: pgSyncState.syncLogs.length,
                     itemBuilder: (context, index) {
-                      final log = pgSync.syncLogs[index];
+                      final log = pgSyncState.syncLogs[index];
                       
                       // Highlight tokens based on SQL transaction logs
                       Color color = AppConstants.textSecondary;

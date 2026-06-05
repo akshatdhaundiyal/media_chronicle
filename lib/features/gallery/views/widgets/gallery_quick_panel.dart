@@ -1,26 +1,26 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../../../core/constants/app_constants.dart';
-import '../../../../state/app_state.dart';
-import '../../providers/gallery_provider.dart';
-import '../../../settings/providers/settings_provider.dart';
-import '../../models/media_item.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:media_chronicle/core/constants/app_constants.dart';
+import 'package:media_chronicle/state/app_state.dart';
+import 'package:media_chronicle/features/gallery/providers/gallery_provider.dart';
+import 'package:media_chronicle/features/settings/providers/settings_provider.dart';
+import 'package:media_chronicle/features/gallery/models/media_item.dart';
 
-class GalleryQuickPanel extends StatelessWidget {
+class GalleryQuickPanel extends ConsumerWidget {
   const GalleryQuickPanel({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final galleryProv = context.watch<GalleryProvider>();
-    final settings = context.watch<SettingsProvider>();
-    final appState = context.watch<AppState>();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final galleryState = ref.watch(galleryProvider);
+    final settings = ref.watch(settingsProvider);
+    final appState = ref.watch(appStateProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        _buildBatchProgressHUD(context, galleryProv.items),
-        _buildCombinedQuickPanel(context, settings, galleryProv, appState),
+        _buildBatchProgressHUD(context, galleryState.items),
+        _buildCombinedQuickPanel(context, ref, settings, galleryState, appState),
       ],
     );
   }
@@ -122,9 +122,10 @@ class GalleryQuickPanel extends StatelessWidget {
 
   Widget _buildCombinedQuickPanel(
     BuildContext context,
-    SettingsProvider settings,
-    GalleryProvider galleryProv,
-    AppState appState,
+    WidgetRef ref,
+    SettingsState settings,
+    GalleryState galleryState,
+    AppStateData appState,
   ) {
     final isLarge = MediaQuery.of(context).size.width > 900;
 
@@ -149,9 +150,9 @@ class GalleryQuickPanel extends StatelessWidget {
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppConstants.textPrimary),
                     ),
                     const Spacer(),
-                    _buildVlmControls(context, settings, galleryProv),
+                    _buildVlmControls(context, ref, settings, galleryState),
                     const SizedBox(width: 16),
-                    _buildCreateFolderButton(context, galleryProv),
+                    _buildCreateFolderButton(context, ref),
                   ],
                 )
               : Column(
@@ -170,11 +171,11 @@ class GalleryQuickPanel extends StatelessWidget {
                             ),
                           ],
                         ),
-                        _buildCreateFolderButton(context, galleryProv),
+                        _buildCreateFolderButton(context, ref),
                       ],
                     ),
                     const SizedBox(height: 8),
-                    _buildVlmControls(context, settings, galleryProv),
+                    _buildVlmControls(context, ref, settings, galleryState),
                   ],
                 ),
           const SizedBox(height: 12),
@@ -184,7 +185,7 @@ class GalleryQuickPanel extends StatelessWidget {
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               physics: const BouncingScrollPhysics(),
-              itemCount: galleryProv.albums.length + 1,
+              itemCount: galleryState.albums.length + 1,
               itemBuilder: (context, index) {
                 if (index == 0) {
                   final isSelected = appState.activeAlbumId == null;
@@ -192,42 +193,42 @@ class GalleryQuickPanel extends StatelessWidget {
                     padding: const EdgeInsets.only(right: 16),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(8),
-                      onTap: () => appState.updateAlbumFilter(null),
+                      onTap: () => ref.read(appStateProvider.notifier).updateAlbumFilter(null),
                       child: Row(
                         children: [
-                          Icon(
-                            Icons.all_inbox_outlined,
-                            color: isSelected ? AppConstants.secondary : AppConstants.textMuted,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'All Elements',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                              color: isSelected ? AppConstants.textPrimary : AppConstants.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }
+                           Icon(
+                             Icons.all_inbox_outlined,
+                             color: isSelected ? AppConstants.secondary : AppConstants.textMuted,
+                             size: 18,
+                           ),
+                           const SizedBox(width: 6),
+                           Text(
+                             'All Elements',
+                             style: TextStyle(
+                               fontSize: 12,
+                               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                               color: isSelected ? AppConstants.textPrimary : AppConstants.textSecondary,
+                             ),
+                           ),
+                         ],
+                       ),
+                     ),
+                   );
+                 }
 
-                final album = galleryProv.albums[index - 1];
-                final isSelected = appState.activeAlbumId == album.id;
+                 final album = galleryState.albums[index - 1];
+                 final isSelected = appState.activeAlbumId == album.id;
 
-                return Padding(
-                  padding: const EdgeInsets.only(right: 16),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(8),
-                    onTap: () => appState.updateAlbumFilter(album.id),
-                    onLongPress: () {
-                      galleryProv.deleteAlbum(album.id);
-                      if (appState.activeAlbumId == album.id) {
-                        appState.updateAlbumFilter(null);
-                      }
+                 return Padding(
+                   padding: const EdgeInsets.only(right: 16),
+                   child: InkWell(
+                     borderRadius: BorderRadius.circular(8),
+                     onTap: () => ref.read(appStateProvider.notifier).updateAlbumFilter(album.id),
+                     onLongPress: () {
+                       ref.read(galleryProvider.notifier).deleteAlbum(album.id);
+                       if (appState.activeAlbumId == album.id) {
+                         ref.read(appStateProvider.notifier).updateAlbumFilter(null);
+                       }
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text('Album "${album.name}" deleted.')),
                       );
@@ -265,9 +266,9 @@ class GalleryQuickPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildVlmControls(BuildContext context, SettingsProvider settings, GalleryProvider galleryProv) {
-    final models = galleryProv.pulledModels.isNotEmpty
-        ? galleryProv.pulledModels
+  Widget _buildVlmControls(BuildContext context, WidgetRef ref, SettingsState settings, GalleryState galleryState) {
+    final models = galleryState.pulledModels.isNotEmpty
+        ? galleryState.pulledModels
         : [settings.ollamaModel.isNotEmpty ? settings.ollamaModel : 'Auto-Detecting...'];
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -293,7 +294,7 @@ class GalleryQuickPanel extends StatelessWidget {
               child: Switch(
                 value: settings.autoTagEnabled,
                 activeThumbColor: AppConstants.accent,
-                onChanged: (val) => settings.toggleAutoTag(val),
+                onChanged: (val) => ref.read(settingsProvider.notifier).toggleAutoTag(val),
               ),
             ),
           ),
@@ -319,7 +320,7 @@ class GalleryQuickPanel extends StatelessWidget {
                 style: const TextStyle(fontSize: 10, color: AppConstants.textPrimary),
                 onChanged: (newModel) {
                   if (newModel != null) {
-                    settings.updateOllamaModel(newModel);
+                    ref.read(settingsProvider.notifier).updateOllamaModel(newModel);
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('VLM Model target updated to $newModel')),
                     );
@@ -339,9 +340,9 @@ class GalleryQuickPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildCreateFolderButton(BuildContext context, GalleryProvider galleryProv) {
+  Widget _buildCreateFolderButton(BuildContext context, WidgetRef ref) {
     return TextButton.icon(
-      onPressed: () => _showCreateAlbumDialog(context, galleryProv),
+      onPressed: () => _showCreateAlbumDialog(context, ref),
       icon: const Icon(Icons.add_circle_outline, size: 13, color: AppConstants.secondary),
       label: const Text(
         'Create Folder',
@@ -355,7 +356,7 @@ class GalleryQuickPanel extends StatelessWidget {
     );
   }
 
-  void _showCreateAlbumDialog(BuildContext context, GalleryProvider galleryProv) {
+  void _showCreateAlbumDialog(BuildContext context, WidgetRef ref) {
     final controller = TextEditingController();
     showDialog(
       context: context,
@@ -407,7 +408,7 @@ class GalleryQuickPanel extends StatelessWidget {
             onPressed: () {
               final name = controller.text.trim();
               if (name.isNotEmpty) {
-                galleryProv.createAlbum(name);
+                ref.read(galleryProvider.notifier).createAlbum(name);
                 Navigator.pop(dialogCtx);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('Folder "$name" created successfully!')),

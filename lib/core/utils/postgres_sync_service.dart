@@ -1,31 +1,60 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:postgres/postgres.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../features/gallery/models/media_item.dart';
 import '../../features/gallery/models/detected_face.dart';
 
-class PostgresSyncService extends ChangeNotifier {
-  static final PostgresSyncService _instance = PostgresSyncService._internal();
-  factory PostgresSyncService() => _instance;
-  
-  PostgresSyncService._internal() {
-    _addLog('[System] PostgreSQL Sync Center ready. Offline queuing active.');
-  }
+part 'postgres_sync_service.g.dart';
 
+@immutable
+class PostgresSyncState {
+  final bool isConnected;
+  final int syncedRecords;
+  final List<String> syncLogs;
+  final List<String> syncQueue;
+
+  const PostgresSyncState({
+    required this.isConnected,
+    required this.syncedRecords,
+    required this.syncLogs,
+    required this.syncQueue,
+  });
+
+  PostgresSyncState copyWith({
+    bool? isConnected,
+    int? syncedRecords,
+    List<String>? syncLogs,
+    List<String>? syncQueue,
+  }) {
+    return PostgresSyncState(
+      isConnected: isConnected ?? this.isConnected,
+      syncedRecords: syncedRecords ?? this.syncedRecords,
+      syncLogs: syncLogs ?? this.syncLogs,
+      syncQueue: syncQueue ?? this.syncQueue,
+    );
+  }
+}
+
+@riverpod
+class PostgresSync extends _$PostgresSync {
   // Active Connection reference
   Connection? _connection;
 
-  // Status variables
-  bool _isConnected = false;
-  int _syncedRecords = 0;
-  final List<String> _syncLogs = [];
-  final List<String> _syncQueue = [];
+  @override
+  PostgresSyncState build() {
+    // Prevent memory and socket leaks on provider disposal
+    ref.onDispose(() {
+      _connection?.close();
+    });
 
-  // Getters
-  bool get isConnected => _isConnected;
-  int get syncedRecords => _syncedRecords;
-  List<String> get syncLogs => List.unmodifiable(_syncLogs);
-  List<String> get syncQueue => List.unmodifiable(_syncQueue);
+    return const PostgresSyncState(
+      isConnected: false,
+      syncedRecords: 0,
+      syncLogs: ['[System] PostgreSQL Sync Center ready. Offline queuing active.'],
+      syncQueue: [],
+    );
+  }
 
   // PostgreSQL Relational Tables Schema Definition (DDL)
   String get sqlSchemaMigration {
@@ -91,7 +120,6 @@ CREATE INDEX IF NOT EXISTS idx_yolo_faces_name ON yolo_faces(name) WHERE is_iden
   }) async {
     if (val) {
       _addLog('[System] Attempting connection to PostgreSQL...');
-      notifyListeners();
       try {
         if (_connection != null) {
           await _connection!.close();
@@ -118,33 +146,29 @@ CREATE INDEX IF NOT EXISTS idx_yolo_faces_name ON yolo_faces(name) WHERE is_iden
           ),
         ).timeout(const Duration(seconds: 5));
 
-        _isConnected = true;
+        state = state.copyWith(isConnected: true);
         _addLog('[Success] PostgreSQL Connection ESTABLISHED!');
         _addLog('[System] Endpoint: $targetHost:$targetPort/$targetDb');
         
         await _runDatabaseMigrations();
-        
-        notifyListeners();
       } catch (e) {
-        _isConnected = false;
+        state = state.copyWith(isConnected: false);
         _connection = null;
         _addLog('[Error] PostgreSQL Connection Failed: $e');
-        notifyListeners();
       }
     } else {
-      _isConnected = false;
+      state = state.copyWith(isConnected: false);
       if (_connection != null) {
         await _connection!.close();
         _connection = null;
       }
       _addLog('[System] PostgreSQL Connection PAUSED.');
-      notifyListeners();
     }
   }
 
   /// Runs database table structure migrations automatically upon connecting
   Future<void> _runDatabaseMigrations() async {
-    if (_connection == null || !_isConnected) return;
+    if (_connection == null || !state.isConnected) return;
     
     _addLog('[Execute] Checking database table structure and indexes...');
     try {
@@ -166,10 +190,10 @@ CREATE INDEX IF NOT EXISTS idx_yolo_faces_name ON yolo_faces(name) WHERE is_iden
 
   /// Registers and processes a PostgreSQL synchronization query block in the background
   void _executeSyncQuery(String sql) {
-    if (!_isConnected || _connection == null) {
-      _syncQueue.add(sql);
+    if (!state.isConnected || _connection == null) {
+      final queue = List<String>.from(state.syncQueue)..add(sql);
+      state = state.copyWith(syncQueue: queue);
       _addLog('[Database OFFLINE] Sync query queued: ${sql.split('\n').first}...');
-      notifyListeners();
       return;
     }
 
@@ -179,19 +203,17 @@ CREATE INDEX IF NOT EXISTS idx_yolo_faces_name ON yolo_faces(name) WHERE is_iden
     // Run real async db execution
     scheduleMicrotask(() async {
       try {
-        if (_connection != null && _isConnected) {
+        if (_connection != null && state.isConnected) {
           await _connection!.execute(sql);
-          _syncedRecords++;
+          state = state.copyWith(syncedRecords: state.syncedRecords + 1);
           _addLog('[Success] Database transaction committed! (Row synced successfully)');
-          notifyListeners();
         } else {
-          _syncQueue.add(sql);
+          final queue = List<String>.from(state.syncQueue)..add(sql);
+          state = state.copyWith(syncQueue: queue);
           _addLog('[Database OFFLINE] Connection dropped. Query queued.');
-          notifyListeners();
         }
       } catch (e) {
         _addLog('[Error] Execution failed: $e');
-        notifyListeners();
       }
     });
   }
@@ -250,17 +272,16 @@ ON CONFLICT (id) DO UPDATE SET
 
   /// Retries flushing any offline-queued statements when Postgres reconnects
   void processSyncQueue() {
-    if (_syncQueue.isEmpty || !_isConnected || _connection == null) return;
+    if (state.syncQueue.isEmpty || !state.isConnected || _connection == null) return;
 
-    _addLog('[System] Flushing offline synchronized queue (${_syncQueue.length} statements)...');
-    final statements = List<String>.from(_syncQueue);
-    _syncQueue.clear();
+    _addLog('[System] Flushing offline synchronized queue (${state.syncQueue.length} statements)...');
+    final statements = List<String>.from(state.syncQueue);
+    state = state.copyWith(syncQueue: []);
     
     int index = 0;
     Timer.periodic(const Duration(milliseconds: 250), (timer) {
-      if (index >= statements.length || !_isConnected || _connection == null) {
+      if (index >= statements.length || !state.isConnected || _connection == null) {
         timer.cancel();
-        notifyListeners();
         return;
       }
       _executeSyncQuery(statements[index++]);
@@ -268,15 +289,14 @@ ON CONFLICT (id) DO UPDATE SET
   }
 
   void _addLog(String log) {
-    _syncLogs.add(log);
-    if (_syncLogs.length > 200) {
-      _syncLogs.removeAt(0);
+    final newLogs = List<String>.from(state.syncLogs)..add(log);
+    if (newLogs.length > 200) {
+      newLogs.removeAt(0);
     }
+    state = state.copyWith(syncLogs: newLogs);
   }
 
   void clearLogs() {
-    _syncLogs.clear();
-    _syncLogs.add('[System] PostgreSQL Console terminal reset.');
-    notifyListeners();
+    state = state.copyWith(syncLogs: ['[System] PostgreSQL Console terminal reset.']);
   }
 }

@@ -73,6 +73,20 @@ All scripts share a unified configuration system:
 CLI flags  >  Environment variables (YOLO_*)  >  yolo_config.yaml  >  Hardcoded defaults
 ```
 
+## Dynamic Model & Weights Resolution
+
+To support out-of-the-box community checkpoints (like `yolov12n-face.pt`) for immediate inference without hardcoding `best.pt`, all pipeline scripts feature a unified weights resolution cascade:
+
+1. **CLI Flag (`--weights <path/identifier>`)** — The highest priority, explicitly overriding any other setting. E.g.:
+   ```powershell
+   uv run scripts/yolo_detect.py --weights yolov12n-face.pt --source image.jpg
+   ```
+2. **Configuration Override (`pretrained_weights` in `yolo_config.yaml` or env)** — Loads custom pre-trained or community weight files from local disk or online registries directly. E.g., setting `pretrained_weights: "yolov12n-face.pt"` will auto-download and run the YOLOv12 face detector.
+3. **Training Fallback (`runs/train/weights/best.pt`)** — Falls back to local custom-trained model weights if present inside the default training runs folder.
+4. **Default Variant Pretrained Weight (`yolov8{variant}.pt`, `yolov12{variant}.pt`)** — The base fallback, auto-downloaded if no other custom weight is configured or exists on disk.
+
+To switch default model architecture versions, update the `model_prefix` configuration (e.g. from `yolov8` to `yolov12`) inside `yolo_config.yaml`.
+
 ## Flutter Integration
 
 From the Dart desktop app, these scripts are invoked via:

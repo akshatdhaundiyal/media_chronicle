@@ -12,13 +12,15 @@
 # pick it up automatically from the scripts/ directory.
 # ──────────────────────────────────────────────────────────────────────────────
 
-# ── Model Architecture ───────────────────────────────────────────────────────
-# YOLOv8 variant: n (nano), s (small), m (medium), l (large), x (extra-large)
+# YOLO model prefix: yolov8, yolov12, etc. (defaults to yolov8 if omitted)
+model_prefix: "yolov8"
+
+# YOLO variant: n (nano), s (small), m (medium), l (large), x (extra-large)
 # Nano is the fastest for iteration; use 's' or 'm' for production accuracy.
 model_variant: "n"
 
-# Path to a custom pretrained checkpoint (.pt file).
-# Leave null to auto-download COCO-pretrained weights.
+# Path to a custom pretrained checkpoint (.pt file) or online registry name.
+# Examples: "yolov12n-face.pt", "best.pt", null
 pretrained_weights: null
 
 # ── Training Hyperparameters ─────────────────────────────────────────────────

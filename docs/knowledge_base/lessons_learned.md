@@ -33,6 +33,11 @@ To keep documentation clean, modular, and highly detailed, the technical logs ha
 *   **Key Concepts**: Softmax activation with numerical stability constants, cross-entropy loss, online Stochastic Gradient Descent (SGD) backpropagation, and vector cluster coordinate mapping.
 *   **Related Milestones**: M2 (YOLO Face Recognition), M6 (On-Device ML Engine).
 
+### 🔀 [Module 6: Riverpod & Provider Package Coexistence](file:///d:/lab/projects/media_chronicle/docs/knowledge_base/06_riverpod_provider_coexistence.md)
+*   **Focus**: Integrating the Riverpod state management framework while maintaining backward compatibility with existing legacy Provider codebases.
+*   **Key Concepts**: Prefix namespacing (`as legacy`), ProviderScope/MultiProvider wrapper structures, gradual widget refactoring to ConsumerWidget/ConsumerStatefulWidget, and unit testing within isolated ProviderContainers.
+*   **Related Milestones**: M11 (Riverpod Setup), M12 (AppState Migration), M13 (Settings Migration), M14 (Stories Migration), M15 (YoloFace Migration).
+
 ---
 
 ## 📐 Cross-Reference: Milestones → Knowledge Modules
@@ -49,6 +54,12 @@ To keep documentation clean, modular, and highly detailed, the technical logs ha
 | M8 — Fast-Load & Offline Bypass | Module 4 (State Management) |
 | M9 — Project-Wide Modularisation | Modules 2, 4 (Layout, Performance) |
 | M10 — Python YOLO Pipeline | PEP 723 dependency isolation & unified config cascade design patterns |
+| M11 — Riverpod & Clean Arch Setup | Module 6 (Riverpod Coexistence) |
+| M12 — AppState Riverpod Migration | Module 6 (Riverpod Coexistence) |
+| M13 — Settings Riverpod Migration | Module 6 (Riverpod Coexistence) |
+| M14 — Stories Riverpod Migration | Module 6 (Riverpod Coexistence) |
+| M15 — YoloFace Riverpod Migration | Module 6 (Riverpod Coexistence) |
+| M16 — Gallery & Postgres Sync Riverpod Migration | Module 6 (Riverpod Coexistence) |
 
 ---
 
@@ -67,6 +78,7 @@ All milestone design documents are located in `docs/design_docs/`:
 | [06_fast_load_bypass.md](file:///d:/lab/projects/media_chronicle/docs/design_docs/06_fast_load_bypass.md) | M8 — Fast-load & offline bypass |
 | [07_code_modularisation.md](file:///d:/lab/projects/media_chronicle/docs/design_docs/07_code_modularisation.md) | M9 — Widget decomposition |
 | [08_python_yolo_pipeline.md](file:///d:/lab/projects/media_chronicle/docs/design_docs/08_python_yolo_pipeline.md) | M10 — Python pipeline & notebook |
+| [09_riverpod_clean_architecture_setup.md](file:///d:/lab/projects/media_chronicle/docs/design_docs/09_riverpod_clean_architecture_setup.md) | M11 + M12 + M13 + M14 — Riverpod & Clean Arch setup and migrations |
 
 ---
 

@@ -1,3 +1,8 @@
+---
+title: Workflow Recipes
+description: Detailed step-by-step procedures for backend additions, UI implementation, milestones, and troubleshooting.
+---
+
 # Workflow Recipes
 
 Step-by-step guides for common development tasks to ensure consistency and quality.

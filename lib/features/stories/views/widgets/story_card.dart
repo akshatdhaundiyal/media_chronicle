@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../models/story_item.dart';
 import '../../providers/stories_provider.dart';
 
-class StoryCard extends StatelessWidget {
+class StoryCard extends ConsumerWidget {
   final StoryItem story;
   final VoidCallback onTap;
 
@@ -15,7 +15,7 @@ class StoryCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(AppConstants.borderRadius),
@@ -92,7 +92,7 @@ class StoryCard extends StatelessWidget {
                       IconButton(
                         icon: const Icon(Icons.delete_sweep_outlined, color: Colors.redAccent, size: 20),
                         onPressed: () {
-                          context.read<StoriesProvider>().deleteStory(story.id);
+                          ref.read(storiesProvider.notifier).deleteStory(story.id);
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('Chronicle story deleted')),
                           );

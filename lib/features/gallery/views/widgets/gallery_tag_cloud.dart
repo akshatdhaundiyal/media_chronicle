@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../../../core/constants/app_constants.dart';
-import '../../../../state/app_state.dart';
-import '../../providers/gallery_provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:media_chronicle/core/constants/app_constants.dart';
+import 'package:media_chronicle/state/app_state.dart';
+import 'package:media_chronicle/features/gallery/providers/gallery_provider.dart';
 
-class GalleryTagCloud extends StatelessWidget {
+class GalleryTagCloud extends ConsumerWidget {
   const GalleryTagCloud({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final galleryProv = context.watch<GalleryProvider>();
-    final appState = context.watch<AppState>();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final galleryState = ref.watch(galleryProvider);
+    final appState = ref.watch(appStateProvider);
 
     final uniqueTags = <String>{};
-    for (var item in galleryProv.items) {
+    for (var item in galleryState.items) {
       if (item.face != null && item.face != 'none' && !item.face!.contains('none')) {
         uniqueTags.add(item.face!.split(',').first.trim());
       }
@@ -53,7 +53,7 @@ class GalleryTagCloud extends StatelessWidget {
                     Text('Reset Tags Filter', style: TextStyle(fontSize: 10, color: Colors.redAccent, fontWeight: FontWeight.bold)),
                   ],
                 ),
-                onPressed: () => appState.updateTagFilter(null),
+                onPressed: () => ref.read(appStateProvider.notifier).updateTagFilter(null),
               ),
             );
           }
@@ -76,7 +76,7 @@ class GalleryTagCloud extends StatelessWidget {
               ),
               selected: isSelected,
               onSelected: (val) {
-                appState.updateTagFilter(val ? tag : null);
+                ref.read(appStateProvider.notifier).updateTagFilter(val ? tag : null);
               },
             ),
           );

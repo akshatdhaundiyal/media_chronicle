@@ -1,23 +1,23 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../../core/constants/app_constants.dart';
-import '../../../state/app_state.dart';
-import '../providers/stories_provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:media_chronicle/core/constants/app_constants.dart';
+import 'package:media_chronicle/state/app_state.dart';
+import 'package:media_chronicle/features/stories/providers/stories_provider.dart';
 import 'widgets/create_story_dialog.dart';
 import 'widgets/stories_empty_state.dart';
 import 'widgets/story_card.dart';
 import 'widgets/story_detail_dialog.dart';
 
-class StoriesScreen extends StatelessWidget {
+class StoriesScreen extends ConsumerWidget {
   const StoriesScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final storiesProv = context.watch<StoriesProvider>();
-    final appState = context.watch<AppState>();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final stories = ref.watch(storiesProvider);
+    final appState = ref.watch(appStateProvider);
     final query = appState.searchQuery.toLowerCase();
 
-    final filteredStories = storiesProv.stories.where((story) {
+    final filteredStories = stories.where((story) {
       return story.title.toLowerCase().contains(query) ||
           story.description.toLowerCase().contains(query);
     }).toList();

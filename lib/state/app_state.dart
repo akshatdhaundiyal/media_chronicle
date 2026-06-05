@@ -1,62 +1,103 @@
 import 'package:flutter/foundation.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+part 'app_state.g.dart';
 
 enum AppTab { stories, gallery, explorer, settings, yolo }
 
-class AppState extends ChangeNotifier {
-  AppTab _currentTab = AppTab.stories;
-  String _searchQuery = '';
-  String _activeGroupFilter = 'All';
-  String? _activeTagFilter;
-  String? _activeAlbumId;
+@immutable
+class AppStateData {
+  final AppTab currentTab;
+  final String searchQuery;
+  final String activeGroupFilter;
+  final String? activeTagFilter;
+  final String? activeAlbumId;
 
-  AppTab get currentTab => _currentTab;
-  String get searchQuery => _searchQuery;
-  String get activeGroupFilter => _activeGroupFilter;
-  String? get activeTagFilter => _activeTagFilter;
-  String? get activeAlbumId => _activeAlbumId;
+  const AppStateData({
+    required this.currentTab,
+    required this.searchQuery,
+    required this.activeGroupFilter,
+    this.activeTagFilter,
+    this.activeAlbumId,
+  });
+
+  AppStateData copyWith({
+    AppTab? currentTab,
+    String? searchQuery,
+    String? activeGroupFilter,
+    String? activeTagFilter,
+    String? activeAlbumId,
+    bool clearTag = false,
+    bool clearAlbum = false,
+  }) {
+    return AppStateData(
+      currentTab: currentTab ?? this.currentTab,
+      searchQuery: searchQuery ?? this.searchQuery,
+      activeGroupFilter: activeGroupFilter ?? this.activeGroupFilter,
+      activeTagFilter: clearTag ? null : (activeTagFilter ?? this.activeTagFilter),
+      activeAlbumId: clearAlbum ? null : (activeAlbumId ?? this.activeAlbumId),
+    );
+  }
+}
+
+@riverpod
+class AppState extends _$AppState {
+  @override
+  AppStateData build() {
+    return const AppStateData(
+      currentTab: AppTab.stories,
+      searchQuery: '',
+      activeGroupFilter: 'All',
+    );
+  }
 
   void changeTab(AppTab tab) {
-    if (_currentTab != tab) {
-      _currentTab = tab;
-      notifyListeners();
+    if (state.currentTab != tab) {
+      state = state.copyWith(currentTab: tab);
     }
   }
 
   void updateSearchQuery(String query) {
-    _searchQuery = query;
-    notifyListeners();
+    state = state.copyWith(searchQuery: query);
   }
 
   void updateGroupFilter(String filter) {
-    if (_activeGroupFilter != filter) {
-      _activeGroupFilter = filter;
-      _activeAlbumId = null; // Clear album filter if group category changes
-      _activeTagFilter = null; // Clear tag filter if category changes
-      notifyListeners();
+    if (state.activeGroupFilter != filter) {
+      state = state.copyWith(
+        activeGroupFilter: filter,
+        clearAlbum: true,
+        clearTag: true,
+      );
     }
   }
 
   void updateTagFilter(String? tag) {
-    if (_activeTagFilter != tag) {
-      _activeTagFilter = tag;
-      notifyListeners();
+    if (state.activeTagFilter != tag) {
+      state = state.copyWith(
+        activeTagFilter: tag,
+        clearTag: tag == null,
+      );
     }
   }
 
   void updateAlbumFilter(String? albumId) {
-    if (_activeAlbumId != albumId) {
-      _activeAlbumId = albumId;
-      _activeGroupFilter = 'All'; // Reset group filter if active album selected
-      _activeTagFilter = null; // Reset tag filter
-      notifyListeners();
+    if (state.activeAlbumId != albumId) {
+      state = state.copyWith(
+        activeAlbumId: albumId,
+        activeGroupFilter: 'All',
+        clearAlbum: albumId == null,
+        clearTag: true,
+      );
     }
   }
 
   void clearAllFilters() {
-    _activeGroupFilter = 'All';
-    _activeTagFilter = null;
-    _activeAlbumId = null;
-    _searchQuery = '';
-    notifyListeners();
+    state = AppStateData(
+      currentTab: state.currentTab,
+      searchQuery: '',
+      activeGroupFilter: 'All',
+      activeTagFilter: null,
+      activeAlbumId: null,
+    );
   }
 }

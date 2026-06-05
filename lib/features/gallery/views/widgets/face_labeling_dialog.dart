@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../models/detected_face.dart';
 import '../../providers/yolo_face_provider.dart';
@@ -12,7 +12,7 @@ import '../../providers/yolo_face_provider.dart';
 ///    varies significantly from prior images of the same name (low confidence matching),
 ///    the form triggers an inline secondary verification asking whether it is the "Same Person (Age Variant)"
 ///    or a "Different Person". This helps catalog physical age drift over time.
-class FaceLabelingDialog extends StatefulWidget {
+class FaceLabelingDialog extends ConsumerStatefulWidget {
   /// The specific face region coordinate details being labeled.
   final DetectedFace face;
 
@@ -26,7 +26,7 @@ class FaceLabelingDialog extends StatefulWidget {
   });
 
   @override
-  State<FaceLabelingDialog> createState() => _FaceLabelingDialogState();
+  ConsumerState<FaceLabelingDialog> createState() => _FaceLabelingDialogState();
 
   /// Utility entrypoint to display the labeling form as a modal dialog layer.
   static void show(BuildContext context, DetectedFace face, String parentSha256) {
@@ -40,7 +40,7 @@ class FaceLabelingDialog extends StatefulWidget {
   }
 }
 
-class _FaceLabelingDialogState extends State<FaceLabelingDialog> {
+class _FaceLabelingDialogState extends ConsumerState<FaceLabelingDialog> {
   late final TextEditingController _nameController;
 
   @override
@@ -57,7 +57,7 @@ class _FaceLabelingDialogState extends State<FaceLabelingDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final yoloFaceProv = context.read<YoloFaceProvider>();
+    final yoloNotifier = ref.read(yoloFaceProvider.notifier);
 
     return AlertDialog(
       backgroundColor: AppConstants.dialogBg,
@@ -111,7 +111,7 @@ class _FaceLabelingDialogState extends State<FaceLabelingDialog> {
             Navigator.pop(context); // Close identity dialog
 
             // Check for age variant confirmation
-            final shouldPromptVariant = yoloFaceProv.checkShouldPromptAgeVariant(widget.face.id, name);
+            final shouldPromptVariant = yoloNotifier.checkShouldPromptAgeVariant(widget.face.id, name);
 
             if (shouldPromptVariant) {
               // Trigger Age Variant Confirmation Dialog
@@ -148,7 +148,7 @@ class _FaceLabelingDialogState extends State<FaceLabelingDialog> {
                     ),
                     TextButton(
                       onPressed: () {
-                        yoloFaceProv.labelFace(widget.face.id, name, isAgeVariant: false, parentSha256: widget.parentSha256);
+                        yoloNotifier.labelFace(widget.face.id, name, isAgeVariant: false, parentSha256: widget.parentSha256);
                         Navigator.pop(variantCtx);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: Text('Registered as different identity: $name (2)')),
@@ -158,7 +158,7 @@ class _FaceLabelingDialogState extends State<FaceLabelingDialog> {
                     ),
                     ElevatedButton(
                       onPressed: () {
-                        yoloFaceProv.labelFace(widget.face.id, name, isAgeVariant: true, parentSha256: widget.parentSha256);
+                        yoloNotifier.labelFace(widget.face.id, name, isAgeVariant: true, parentSha256: widget.parentSha256);
                         Navigator.pop(variantCtx);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: Text('Registered as new Age Variant for $name!')),
@@ -171,7 +171,7 @@ class _FaceLabelingDialogState extends State<FaceLabelingDialog> {
                 ),
               );
             } else {
-              yoloFaceProv.labelFace(widget.face.id, name, isAgeVariant: false, parentSha256: widget.parentSha256);
+              yoloNotifier.labelFace(widget.face.id, name, isAgeVariant: false, parentSha256: widget.parentSha256);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('Enrolled $name. Neural retraining initialized.')),
               );

@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../../../core/constants/app_constants.dart';
-import '../../providers/settings_provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:media_chronicle/core/constants/app_constants.dart';
+import 'package:media_chronicle/features/settings/providers/settings_provider.dart';
 
-class StorageCard extends StatelessWidget {
+class StorageCard extends ConsumerWidget {
   const StorageCard({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final provider = context.watch<SettingsProvider>();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final provider = ref.watch(settingsProvider);
 
     return Container(
       padding: const EdgeInsets.all(AppConstants.paddingLarge),
@@ -50,11 +50,11 @@ class StorageCard extends StatelessWidget {
           const SizedBox(height: AppConstants.paddingMedium),
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: const LinearProgressIndicator(
-              value: 2.4 / 15.0,
+            child: LinearProgressIndicator(
+              value: provider.storageUsedGB / provider.storageTotalGB,
               minHeight: 8,
               backgroundColor: Colors.white10,
-              valueColor: AlwaysStoppedAnimation<Color>(AppConstants.accent),
+              valueColor: const AlwaysStoppedAnimation<Color>(AppConstants.accent),
             ),
           ),
           const SizedBox(height: AppConstants.paddingMedium),
@@ -67,7 +67,7 @@ class StorageCard extends StatelessWidget {
               ),
               TextButton(
                 onPressed: () {
-                  provider.simulateStorageIncrease(100);
+                  ref.read(settingsProvider.notifier).simulateStorageIncrease(100);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Synchronized cloud database space!')),
                   );

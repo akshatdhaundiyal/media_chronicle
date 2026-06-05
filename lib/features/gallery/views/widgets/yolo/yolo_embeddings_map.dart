@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/constants/app_constants.dart';
 import '../../../models/detected_face.dart';
 import '../../../models/media_item.dart';
@@ -10,22 +10,22 @@ import '../face_labeling_dialog.dart';
 /// Renders the interactive 2D dense vector cluster workspace.
 /// By encapsulating this in a standalone stateful widget, we isolate local selection
 /// updates (taps on cluster points) from triggering full-screen repaints elsewhere.
-class YoloEmbeddingsMap extends StatefulWidget {
+class YoloEmbeddingsMap extends ConsumerStatefulWidget {
   const YoloEmbeddingsMap({super.key});
 
   @override
-  State<YoloEmbeddingsMap> createState() => _YoloEmbeddingsMapState();
+  ConsumerState<YoloEmbeddingsMap> createState() => _YoloEmbeddingsMapState();
 }
 
-class _YoloEmbeddingsMapState extends State<YoloEmbeddingsMap> {
+class _YoloEmbeddingsMapState extends ConsumerState<YoloEmbeddingsMap> {
   /// Local state tracking which face vector point is currently selected by the user.
   DetectedFace? _selectedEmbeddingFace;
 
   @override
   Widget build(BuildContext context) {
     // Reactively watch for YOLO provider state updates and gallery catalogs.
-    final yoloProv = context.watch<YoloFaceProvider>();
-    final galleryProv = context.watch<GalleryProvider>();
+    final yoloState = ref.watch(yoloFaceProvider);
+    final galleryState = ref.watch(galleryProvider);
 
     return Container(
       padding: const EdgeInsets.all(AppConstants.paddingLarge),
@@ -93,8 +93,8 @@ class _YoloEmbeddingsMapState extends State<YoloEmbeddingsMap> {
                             return Stack(
                               children: [
                                 // Paint chronological progress paths connecting variations of each enrolled identity
-                                ...yoloProv.enrolledNames.map((name) {
-                                  final faces = yoloProv.detectedFaces
+                                ...yoloState.enrolledNames.map((name) {
+                                  final faces = yoloState.detectedFaces
                                       .where((f) => f.isIdentified && f.name == name)
                                       .toList();
 
@@ -107,7 +107,7 @@ class _YoloEmbeddingsMapState extends State<YoloEmbeddingsMap> {
                                 }),
 
                                 // Paint actual data nodes for each detected face mapping to vector coordinates
-                                ...yoloProv.detectedFaces.map((face) {
+                                ...yoloState.detectedFaces.map((face) {
                                   // Fetch normalized coordinates (0 to 100) from embedding list
                                   final double xVal = face.embedding[0];
                                   final double yVal = face.embedding[1];
@@ -179,7 +179,7 @@ class _YoloEmbeddingsMapState extends State<YoloEmbeddingsMap> {
               // Right: Selected node preview card
               Expanded(
                 flex: 3,
-                child: _buildSelectedEmbeddingPreview(yoloProv, galleryProv),
+                child: _buildSelectedEmbeddingPreview(yoloState, galleryState),
               ),
             ],
           ),
@@ -189,7 +189,7 @@ class _YoloEmbeddingsMapState extends State<YoloEmbeddingsMap> {
   }
 
   /// Builds the inspection drawer displaying metadata and crop previews of the selected point.
-  Widget _buildSelectedEmbeddingPreview(YoloFaceProvider yoloProv, GalleryProvider galleryProv) {
+  Widget _buildSelectedEmbeddingPreview(YoloFaceState yoloState, GalleryState galleryState) {
     // Display prompt info if no embedding is actively selected
     if (_selectedEmbeddingFace == null) {
       return Container(
@@ -223,7 +223,7 @@ class _YoloEmbeddingsMapState extends State<YoloEmbeddingsMap> {
     }
 
     final face = _selectedEmbeddingFace!;
-    final mediaItem = galleryProv.items.firstWhere((i) => i.id == face.mediaItemId);
+    final mediaItem = galleryState.items.firstWhere((i) => i.id == face.mediaItemId);
     Color tagColor = face.isIdentified ? AppConstants.accent : AppConstants.secondary;
 
     return Container(
@@ -283,7 +283,7 @@ class _YoloEmbeddingsMapState extends State<YoloEmbeddingsMap> {
             Padding(
               padding: const EdgeInsets.only(top: 8.0),
               child: ElevatedButton(
-                onPressed: () => _handleFaceLabeling(context, yoloProv, face),
+                onPressed: () => _handleFaceLabeling(context, yoloState, face),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppConstants.accent,
                   minimumSize: const Size.fromHeight(36),
@@ -350,11 +350,11 @@ class _YoloEmbeddingsMapState extends State<YoloEmbeddingsMap> {
   /// Launch face annotation popup, synchronously pre-fetching states before pop overlays.
   void _handleFaceLabeling(
     BuildContext context,
-    YoloFaceProvider yoloFaceProv,
+    YoloFaceState yoloState,
     DetectedFace face,
   ) {
-    final galleryProv = context.read<GalleryProvider>();
-    final mediaItem = galleryProv.items.firstWhere((i) => i.id == face.mediaItemId);
+    final galleryState = ref.read(galleryProvider);
+    final mediaItem = galleryState.items.firstWhere((i) => i.id == face.mediaItemId);
     final parentSha256 = mediaItem.sha256;
 
     FaceLabelingDialog.show(context, face, parentSha256);

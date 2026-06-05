@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/constants/app_constants.dart';
 import '../../../models/detected_face.dart';
 import '../../../models/media_item.dart';
@@ -8,15 +8,15 @@ import '../../../providers/yolo_face_provider.dart';
 
 /// Renders the chronological progress of variations mapped to enrolled identities.
 /// Features a vertical scroller of identities containing nested horizontal timeline scrollers.
-class YoloEnrolledTimeline extends StatelessWidget {
+class YoloEnrolledTimeline extends ConsumerWidget {
   const YoloEnrolledTimeline({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     // Observe state updates reactively to paint new enrollment tags as they are added.
-    final yoloProv = context.watch<YoloFaceProvider>();
-    final galleryProv = context.watch<GalleryProvider>();
-    final names = yoloProv.enrolledNames;
+    final yoloState = ref.watch(yoloFaceProvider);
+    final galleryState = ref.watch(galleryProvider);
+    final names = yoloState.enrolledNames;
 
     return Container(
       padding: const EdgeInsets.all(AppConstants.paddingLarge),
@@ -58,7 +58,7 @@ class YoloEnrolledTimeline extends StatelessWidget {
                     final name = names[idx];
                     
                     // Filter detected face nodes corresponding to this specific identity
-                    final facesForName = yoloProv.detectedFaces
+                    final facesForName = yoloState.detectedFaces
                         .where((f) => f.isIdentified && f.name == name)
                         .toList();
 
@@ -103,7 +103,7 @@ class YoloEnrolledTimeline extends StatelessWidget {
                             itemCount: facesForName.length,
                             itemBuilder: (context, fIdx) {
                               final face = facesForName[fIdx];
-                              final mediaItem = galleryProv.items.firstWhere((i) => i.id == face.mediaItemId);
+                              final mediaItem = galleryState.items.firstWhere((i) => i.id == face.mediaItemId);
 
                               return Padding(
                                 padding: const EdgeInsets.only(right: 12.0),
